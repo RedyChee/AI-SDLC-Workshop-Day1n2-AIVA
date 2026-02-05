@@ -1,0 +1,11 @@
+version: "3.9"
+
+services:
+  todo-app:
+    build:
+      context: ./nextjs_server
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      TZ: Asia/Singapore
