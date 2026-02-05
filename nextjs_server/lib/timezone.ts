@@ -159,3 +159,31 @@ export function isPublicHoliday(dateString: string): boolean {
 export function getPublicHolidayName(dateString: string): string | null {
   return SINGAPORE_HOLIDAYS[dateString] || null
 }
+
+/**
+ * Check if a date is in the past (in Singapore timezone)
+ */
+export function isDateInPast(dateString: string): boolean {
+  const now = getNowSingapore()
+  const date = parseSingaporeDate(dateString)
+  return toSingaporeDateString(date) < toSingaporeDateString(now)
+}
+
+/**
+ * Add days to a Singapore date string
+ */
+export function addDaysToSingaporeDate(dateString: string, days: number): string {
+  const date = parseSingaporeDate(dateString)
+  date.setDate(date.getDate() + days)
+  return toSingaporeDateString(date)
+}
+
+/**
+ * Alias for getNextRecurrenceDate
+ */
+export function calculateNextRecurrence(
+  lastDueDate: string,
+  pattern: 'daily' | 'weekly' | 'monthly' | 'yearly'
+): string {
+  return getNextRecurrenceDate(lastDueDate, pattern)
+}

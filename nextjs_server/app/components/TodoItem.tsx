@@ -4,6 +4,7 @@ import { TodoWithDetails, Tag } from '@/lib/types'
 import { useState } from 'react'
 import { formatSingaporeDate } from '@/lib/timezone'
 import SubtaskManager from './SubtaskManager'
+import ProgressBar from './ProgressBar'
 
 interface TodoItemProps {
   todo: TodoWithDetails
@@ -197,6 +198,15 @@ export default function TodoItem({ todo, availableTags, onDeleted, onToggled, on
               </span>
             ))}
           </div>
+
+          {todo.subtasks.length > 0 && (
+            <div className="mt-2">
+              <ProgressBar
+                completed={todo.subtasks.filter((s: any) => s.is_completed).length}
+                total={todo.subtasks.length}
+              />
+            </div>
+          )}
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <select
