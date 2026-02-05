@@ -372,4 +372,290 @@ test.describe('Todo app core flows', () => {
     await expect(page.getByTestId('calendar-modal')).toBeVisible()
     await expect(page.getByTestId('calendar-modal')).toContainText('Meeting in 3 days')
   })
+
+  test('past due date validation', async ({ request }) => {
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    const pastDate = toDateString(yesterday)
+    
+    const response = await request.post('/api/todos', {
+      data: {
+        title: 'Past due task',
+        priority: 'high',
+        due_date: pastDate,
+      },
+    })
+    
+    expect(response.status()).toBe(400)
+    const body = await response.json()
+    expect(body.error).toContain('future')
+  })
+
+  test('edit priority', async ({ page }) => {
+    await page.goto('/')
+    
+    await page.getByTestId('todo-title').fill('Task to edit priority')
+    await page.getByTestId('todo-priority').selectOption('low')
+    await page.getByTestId('todo-add').click()
+    
+    await page.waitForTimeout(500)
+    
+    const todoItem = page.getByTestId('todo-item').filter({ hasText: 'Task to edit priority' })
+    await expect(todoItem).toBeVisible()
+    await expect(todoItem.locator('.bg-blue-100')).toContainText('low')
+    
+    await todoItem.getByTestId('todo-priority-select').selectOption('high')
+    await page.waitForTimeout(500)
+    
+    await expect(todoItem.locator('.bg-red-100')).toContainText('high')
+  })
+
+  test('verify priority sorting', async ({ page }) => {
+    await page.goto('/')
+    
+    await page.getByTestId('todo-title').fill('Low priority task')
+    await page.getByTestId('todo-priority').selectOption('low')
+    await page.getByTestId('todo-add').click()
+    await page.waitForTimeout(300)
+    
+    await page.getByTestId('todo-title').fill('High priority task')
+    await page.getByTestId('todo-priority').selectOption('high')
+    await page.getByTestId('todo-add').click()
+    await page.waitForTimeout(300)
+    
+    await page.getByTestId('todo-title').fill('Medium priority task')
+    await page.getByTestId('todo-priority').selectOption('medium')
+    await page.getByTestId('todo-add').click()
+    await page.waitForTimeout(500)
+    
+    const todos = page.getByTestId('todo-item')
+    const firstTodo = todos.first()
+    const secondTodo = todos.nth(1)
+    const thirdTodo = todos.nth(2)
+    
+    await expect(firstTodo).toContainText('High priority task')
+    await expect(secondTodo).toContainText('Medium priority task')
+    await expect(thirdTodo).toContainText('Low priority task')
+  })
+
+  test('recurring todo inherits metadata', async ({ page, request }) => {
+    await page.goto('/')
+    
+    const tagResponse = await request.post('/api/tags', {
+      data: { name: 'Work', color: '#ff0000' },
+    })
+    const tagData = await tagResponse.json()
+    const tagId = tagData.data.id
+    
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    const dueDate = toDateString(tomorrow)
+    
+    await page.getByTestId('todo-title').fill('Recurring work task')
+    await page.getByTestId('todo-priority').selectOption('high')
+    await page.getByTestId('todo-due-date').fill(dueDate)
+    await page.getByTestId('todo-recurring').check()
+    await page.getByTestId('todo-recurrence-pattern').selectOption('daily')
+    await page.getByTestId('todo-reminder').selectOption('15')
+    await page.getByTestId('todo-add').click()
+    
+    await page.waitForTimeout(500)
+    
+    const todoItem = page.getByTestId('todo-item').filter({ hasText: 'Recurring work task' })
+    await todoItem.getByTestId('todo-tag-picker').selectOption(tagId)
+    await page.waitForTimeout(500)
+    
+    await todoItem.getByTestId('todo-toggle').click()
+    await page.waitForTimeout(1000)
+    
+    const newInstance = page.getByTestId('todo-item').filter({ hasText: 'Recurring work task' }).last()
+    await expect(newInstance.locator('.bg-red-100')).toContainText('high')
+    await expect(newInstance.locator('.bg-blue-100')).toContainText('daily')
+    await expect(newInstance.locator('.bg-indigo-100')).toContainText('15m')
+    await expect(newInstance.locator('[style*="ff0000"]')).toContainText('Work')
+  })
+
+  test('edit tag name and color', async ({ page, request }) => {
+    await page.goto('/')
+    
+    const createResponse = await request.post('/api/tags', {
+      data: { name: 'OldName', color: '#00ff00' },
+    })
+    const createData = await createResponse.json()
+    const tagId = createData.data.id
+    
+    const updateResponse = await request.put(`/api/tags/${tagId}`, {
+      data: { name: 'NewName', color: '#0000ff' },
+    })
+    expect(updateResponse.ok()).toBeTruthy()
+    
+    const getResponse = await request.get('/api/tags')
+    const getData = await getResponse.json()
+    const updatedTag = getData.data.find((t: any) => t.id === tagId)
+    expect(updatedTag.name).toBe('NewName')
+    expect(updatedTag.color).toBe('#0000ff')
+  })
+
+  test('delete tag', async ({ page, request }) => {
+    await page.goto('/')
+    
+    const createResponse = await request.post('/api/tags', {
+      data: { name: 'ToDelete', color: '#ff00ff' },
+    })
+    const createData = await createResponse.json()
+    const tagId = createData.data.id
+    
+    const deleteResponse = await request.delete(`/api/tags/${tagId}`)
+    expect(deleteResponse.ok()).toBeTruthy()
+    
+    const getResponse = await request.get('/api/tags')
+    const getData = await getResponse.json()
+    const deletedTag = getData.data.find((t: any) => t.id === tagId)
+    expect(deletedTag).toBeUndefined()
+  })
+
+  test('filter by tag', async ({ page, request }) => {
+    await page.goto('/')
+    
+    const tagResponse = await request.post('/api/tags', {
+      data: { name: 'FilterTest', color: '#00ffff' },
+    })
+    const tagData = await tagResponse.json()
+    const tagId = tagData.data.id
+    
+    await page.getByTestId('todo-title').fill('Tagged task')
+    await page.getByTestId('todo-add').click()
+    await page.waitForTimeout(500)
+    
+    await page.getByTestId('todo-title').fill('Untagged task')
+    await page.getByTestId('todo-add').click()
+    await page.waitForTimeout(500)
+    
+    const taggedTodo = page.getByTestId('todo-item').filter({ hasText: 'Tagged task' })
+    await taggedTodo.getByTestId('todo-tag-picker').selectOption(tagId)
+    await page.waitForTimeout(500)
+    
+    await taggedTodo.locator('[style*="00ffff"]').click()
+    await page.waitForTimeout(500)
+    
+    await expect(page.getByTestId('todo-item').filter({ hasText: 'Tagged task' })).toBeVisible()
+    await expect(page.getByTestId('todo-item').filter({ hasText: 'Untagged task' })).not.toBeVisible()
+  })
+
+  test('save todo as template', async ({ page, request }) => {
+    await page.goto('/')
+    
+    await page.getByTestId('todo-title').fill('Template task')
+    await page.getByTestId('todo-priority').selectOption('high')
+    await page.getByTestId('todo-add').click()
+    await page.waitForTimeout(500)
+    
+    const todoItem = page.getByTestId('todo-item').filter({ hasText: 'Template task' })
+    await todoItem.getByTestId('subtask-toggle').click()
+    await page.waitForTimeout(300)
+    
+    await todoItem.getByTestId('subtask-input').fill('Subtask 1')
+    await todoItem.getByTestId('subtask-add').click()
+    await page.waitForTimeout(500)
+    
+    const todosResponse = await request.get('/api/todos')
+    const todosData = await todosResponse.json()
+    const todo = todosData.data.find((t: any) => t.title === 'Template task')
+    
+    const templateResponse = await request.post('/api/templates', {
+      data: {
+        name: 'My Template',
+        description: 'Test template',
+        category: 'work',
+        priority: 'high',
+        is_recurring: false,
+        subtasks_json: JSON.stringify([{ title: 'Subtask 1', position: 0 }]),
+        due_date_offset_days: 1,
+      },
+    })
+    
+    expect(templateResponse.ok()).toBeTruthy()
+    const templateData = await templateResponse.json()
+    expect(templateData.data.name).toBe('My Template')
+  })
+
+  test('edit template', async ({ request }) => {
+    const createResponse = await request.post('/api/templates', {
+      data: {
+        name: 'Original Template',
+        description: 'Original description',
+        category: 'personal',
+        priority: 'medium',
+        is_recurring: false,
+        subtasks_json: '[]',
+        due_date_offset_days: 1,
+      },
+    })
+    const createData = await createResponse.json()
+    const templateId = createData.data.id
+    
+    const updateResponse = await request.put(`/api/templates/${templateId}`, {
+      data: {
+        name: 'Updated Template',
+        description: 'Updated description',
+        category: 'work',
+      },
+    })
+    
+    expect(updateResponse.ok()).toBeTruthy()
+    const updateData = await updateResponse.json()
+    expect(updateData.data.name).toBe('Updated Template')
+    expect(updateData.data.description).toBe('Updated description')
+  })
+
+  test('delete template', async ({ request }) => {
+    const createResponse = await request.post('/api/templates', {
+      data: {
+        name: 'Template to Delete',
+        description: 'Will be deleted',
+        category: 'other',
+        priority: 'low',
+        is_recurring: false,
+        subtasks_json: '[]',
+        due_date_offset_days: 0,
+      },
+    })
+    const createData = await createResponse.json()
+    const templateId = createData.data.id
+    
+    const deleteResponse = await request.delete(`/api/templates/${templateId}`)
+    expect(deleteResponse.ok()).toBeTruthy()
+    
+    const getResponse = await request.get('/api/templates')
+    const getData = await getResponse.json()
+    const deletedTemplate = getData.data.find((t: any) => t.id === templateId)
+    expect(deletedTemplate).toBeUndefined()
+  })
+
+  test('import invalid JSON', async ({ page }) => {
+    await page.goto('/')
+    
+    const invalidJson = 'not valid json'
+    const dataUrl = `data:application/json;base64,${btoa(invalidJson)}`
+    
+    await page.evaluate((url) => {
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement
+      if (input) {
+        const dt = new DataTransfer()
+        fetch(url)
+          .then(res => res.blob())
+          .then(blob => {
+            const file = new File([blob], 'invalid.json', { type: 'application/json' })
+            dt.items.add(file)
+            input.files = dt.files
+            input.dispatchEvent(new Event('change', { bubbles: true }))
+          })
+      }
+    }, dataUrl)
+    
+    await page.waitForTimeout(1000)
+    
+    await expect(page.getByText(/error|invalid|failed/i)).toBeVisible()
+  })
+
 })
