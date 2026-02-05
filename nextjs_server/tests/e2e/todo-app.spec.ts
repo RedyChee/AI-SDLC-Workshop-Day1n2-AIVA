@@ -554,8 +554,8 @@ test.describe('Todo app core flows', () => {
     await todoItem.getByTestId('subtask-toggle').click()
     await page.waitForTimeout(300)
     
-    await todoItem.getByTestId('subtask-input').fill('Subtask 1')
-    await todoItem.getByTestId('subtask-add').click()
+    await todoItem.getByTestId('subtask-title-input').fill('Subtask 1')
+    await todoItem.getByTestId('subtask-submit').click()
     await page.waitForTimeout(500)
     
     const todosResponse = await request.get('/api/todos')

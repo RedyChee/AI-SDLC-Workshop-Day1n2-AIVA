@@ -60,7 +60,7 @@ export default function TodoItem({ todo, availableTags, onDeleted, onToggled, on
   const priorityColors = {
     high: 'bg-red-100 text-red-800',
     medium: 'bg-amber-100 text-amber-800',
-    low: 'bg-green-100 text-green-800',
+    low: 'bg-blue-100 text-blue-800',
   }
 
   const now = new Date()
@@ -165,9 +165,46 @@ export default function TodoItem({ todo, availableTags, onDeleted, onToggled, on
           )}
           
           <div className="flex flex-wrap gap-2 mt-2">
-            <span className={`badge ${priorityColors[todo.priority as keyof typeof priorityColors]}`}>
-              {todo.priority.charAt(0).toUpperCase() + todo.priority.slice(1)}
-            </span>
+            {!isEditing && (
+              <div className="flex items-center gap-1">
+                <select
+                  value={todo.priority}
+                  onChange={async (e) => {
+                    const newPriority = e.target.value as 'low' | 'medium' | 'high'
+                    try {
+                      setIsUpdating(true)
+                      const response = await fetch(`/api/todos/${todo.id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ priority: newPriority }),
+                      })
+                      if (response.ok) {
+                        onUpdated()
+                      }
+                    } catch (err) {
+                      console.error('Failed to update priority:', err)
+                    } finally {
+                      setIsUpdating(false)
+                    }
+                  }}
+                  className="text-xs px-1 py-1 rounded border border-gray-300 cursor-pointer"
+                  data-testid="todo-priority-select"
+                  disabled={isUpdating}
+                >
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+                <span className={`badge ${priorityColors[todo.priority as keyof typeof priorityColors]}`}>
+                  {todo.priority}
+                </span>
+              </div>
+            )}
+            {isEditing && (
+              <span className={`badge ${priorityColors[todo.priority as keyof typeof priorityColors]}`}>
+                {todo.priority.charAt(0).toUpperCase() + todo.priority.slice(1)}
+              </span>
+            )}
             {todo.due_date && (
               <span className={`text-xs px-2 py-1 rounded ${isOverdue ? 'bg-red-200 text-red-800' : 'bg-gray-100 text-gray-700'}`}>
                 {isOverdue ? 'Overdue' : 'Due'} {formatSingaporeDate(new Date(`${todo.due_date}T00:00:00+08:00`))}
