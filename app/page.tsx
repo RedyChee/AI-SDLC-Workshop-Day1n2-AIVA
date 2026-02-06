@@ -236,6 +236,11 @@ export default function TodoPage() {
   // Filter state
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'all'>('all');
   const [tagFilter, setTagFilter] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [completionFilter, setCompletionFilter] = useState<'all' | 'incomplete' | 'completed'>('all');
+  const [dueDateFrom, setDueDateFrom] = useState('');
+  const [dueDateTo, setDueDateTo] = useState('');
   
   // Tag management state
   const [tags, setTags] = useState<Tag[]>([]);
@@ -247,6 +252,43 @@ export default function TodoPage() {
   const [editingTag, setEditingTag] = useState<Tag | null>(null);
   const [editTagName, setEditTagName] = useState('');
   const [editTagColor, setEditTagColor] = useState('');
+  
+  // Filter preset state
+  interface FilterPreset {
+    id: string;
+    name: string;
+    searchQuery: string;
+    priorityFilter: Priority | 'all';
+    tagFilter: number | null;
+    completionFilter: 'all' | 'incomplete' | 'completed';
+    dueDateFrom: string;
+    dueDateTo: string;
+  }
+  
+  const [filterPresets, setFilterPresets] = useState<FilterPreset[]>([]);
+  const [showSavePresetModal, setShowSavePresetModal] = useState(false);
+  const [presetName, setPresetName] = useState('');
+  
+  // Load filter presets from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('filterPresets');
+    if (saved) {
+      try {
+        setFilterPresets(JSON.parse(saved));
+      } catch (e) {
+        console.error('Failed to load filter presets:', e);
+      }
+    }
+  }, []);
+  
+  // Save filter presets to localStorage whenever they change
+  useEffect(() => {
+    if (filterPresets.length > 0) {
+      localStorage.setItem('filterPresets', JSON.stringify(filterPresets));
+    } else {
+      localStorage.removeItem('filterPresets');
+    }
+  }, [filterPresets]);
   
   // Notifications hook
   const { 
@@ -455,6 +497,72 @@ export default function TodoPage() {
         ? prev.filter(id => id !== tagId)
         : [...prev, tagId]
     );
+  };
+
+  // Filter preset management functions
+  const saveFilterPreset = () => {
+    const trimmedName = presetName.trim();
+    if (!trimmedName) {
+      alert('Preset name is required');
+      return;
+    }
+    
+    if (trimmedName.length > 50) {
+      alert('Preset name must be 50 characters or less');
+      return;
+    }
+
+    const newPreset: FilterPreset = {
+      id: Date.now().toString(),
+      name: trimmedName,
+      searchQuery,
+      priorityFilter,
+      tagFilter,
+      completionFilter,
+      dueDateFrom,
+      dueDateTo,
+    };
+
+    setFilterPresets(prev => [...prev, newPreset]);
+    setPresetName('');
+    setShowSavePresetModal(false);
+  };
+
+  const applyFilterPreset = (preset: FilterPreset) => {
+    setSearchQuery(preset.searchQuery);
+    setPriorityFilter(preset.priorityFilter);
+    setTagFilter(preset.tagFilter);
+    setCompletionFilter(preset.completionFilter);
+    setDueDateFrom(preset.dueDateFrom);
+    setDueDateTo(preset.dueDateTo);
+    if (preset.dueDateFrom || preset.dueDateTo || preset.completionFilter !== 'all') {
+      setShowAdvancedFilters(true);
+    }
+  };
+
+  const deleteFilterPreset = (presetId: string) => {
+    if (!confirm('Are you sure you want to delete this filter preset?')) {
+      return;
+    }
+    setFilterPresets(prev => prev.filter(p => p.id !== presetId));
+  };
+
+  const clearAllFilters = () => {
+    setSearchQuery('');
+    setPriorityFilter('all');
+    setTagFilter(null);
+    setCompletionFilter('all');
+    setDueDateFrom('');
+    setDueDateTo('');
+  };
+
+  const hasActiveFilters = () => {
+    return searchQuery !== '' ||
+           priorityFilter !== 'all' ||
+           tagFilter !== null ||
+           completionFilter !== 'all' ||
+           dueDateFrom !== '' ||
+           dueDateTo !== '';
   };
 
   const handleDevLogin = async () => {
@@ -794,16 +902,69 @@ export default function TodoPage() {
     }
   };
 
-  // Organize todos into sections with priority and tag filtering
-  let filteredTodos = priorityFilter === 'all' 
-    ? todos 
-    : todos.filter(todo => todo.priority === priorityFilter);
+  // Comprehensive filtering logic with search
+  let filteredTodos = todos;
+  
+  // Apply search filter (searches both todo titles and subtask titles)
+  if (searchQuery.trim()) {
+    const query = searchQuery.toLowerCase().trim();
+    filteredTodos = filteredTodos.filter(todo => {
+      // Search in todo title
+      if (todo.title.toLowerCase().includes(query)) {
+        return true;
+      }
+      // Search in subtask titles
+      if (todo.subtasks && todo.subtasks.length > 0) {
+        return todo.subtasks.some(subtask => 
+          subtask.title.toLowerCase().includes(query)
+        );
+      }
+      return false;
+    });
+  }
+  
+  // Apply priority filter
+  if (priorityFilter !== 'all') {
+    filteredTodos = filteredTodos.filter(todo => todo.priority === priorityFilter);
+  }
   
   // Apply tag filter
   if (tagFilter !== null) {
     filteredTodos = filteredTodos.filter(todo => {
       const todoTags = (todo as any).tags || [];
       return todoTags.some((tag: Tag) => tag.id === tagFilter);
+    });
+  }
+  
+  // Apply completion status filter
+  if (completionFilter === 'incomplete') {
+    filteredTodos = filteredTodos.filter(todo => !todo.completed);
+  } else if (completionFilter === 'completed') {
+    filteredTodos = filteredTodos.filter(todo => todo.completed);
+  }
+  
+  // Apply date range filter (only shows todos WITH due dates)
+  if (dueDateFrom || dueDateTo) {
+    filteredTodos = filteredTodos.filter(todo => {
+      if (!todo.due_date) return false; // Exclude todos without due dates
+      
+      const todoDate = new Date(todo.due_date);
+      
+      if (dueDateFrom && dueDateTo) {
+        const fromDate = new Date(dueDateFrom);
+        const toDate = new Date(dueDateTo);
+        toDate.setHours(23, 59, 59, 999); // Include entire end date
+        return todoDate >= fromDate && todoDate <= toDate;
+      } else if (dueDateFrom) {
+        const fromDate = new Date(dueDateFrom);
+        return todoDate >= fromDate;
+      } else if (dueDateTo) {
+        const toDate = new Date(dueDateTo);
+        toDate.setHours(23, 59, 59, 999);
+        return todoDate <= toDate;
+      }
+      
+      return true;
     });
   }
   
@@ -1026,7 +1187,30 @@ export default function TodoPage() {
           </div>
         </form>
 
-        {/* Priority and Tag Filters with Statistics */}
+        {/* Search Input */}
+        <div className="mb-4">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg">🔍</span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search todos and subtasks..."
+              className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xl font-bold"
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Quick Filters (Priority and Tag) with Statistics */}
         <div className="mb-6 p-4 bg-white rounded-lg shadow-md">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
@@ -1091,6 +1275,103 @@ export default function TodoPage() {
               </div>
             </div>
           </div>
+          
+          {/* Advanced Filters Toggle and Clear All */}
+          <div className="flex gap-2 mt-4">
+            <button
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+            >
+              {showAdvancedFilters ? '▼' : '▶'} Advanced
+            </button>
+            
+            {hasActiveFilters() && (
+              <>
+                <button
+                  onClick={clearAllFilters}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+                >
+                  Clear All
+                </button>
+                
+                <button
+                  onClick={() => setShowSavePresetModal(true)}
+                  className="px-4 py-2 text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-lg transition-colors"
+                >
+                  💾 Save Filter
+                </button>
+              </>
+            )}
+          </div>
+          
+          {/* Advanced Filters Panel */}
+          {showAdvancedFilters && (
+            <div className={`mt-4 p-4 rounded-lg border-2 ${hasActiveFilters() ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                {/* Completion Status Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Completion Status</label>
+                  <select
+                    value={completionFilter}
+                    onChange={(e) => setCompletionFilter(e.target.value as 'all' | 'incomplete' | 'completed')}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                  >
+                    <option value="all">All Todos</option>
+                    <option value="incomplete">Incomplete Only</option>
+                    <option value="completed">Completed Only</option>
+                  </select>
+                </div>
+                
+                {/* Due Date From */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Due Date From</label>
+                  <input
+                    type="date"
+                    value={dueDateFrom}
+                    onChange={(e) => setDueDateFrom(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                  />
+                </div>
+                
+                {/* Due Date To */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Due Date To</label>
+                  <input
+                    type="date"
+                    value={dueDateTo}
+                    onChange={(e) => setDueDateTo(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                  />
+                </div>
+              </div>
+              
+              {/* Saved Filter Presets */}
+              {filterPresets.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-700 mb-2">Saved Filter Presets</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {filterPresets.map(preset => (
+                      <div key={preset.id} className="flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-300 rounded-full">
+                        <button
+                          onClick={() => applyFilterPreset(preset)}
+                          className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                        >
+                          {preset.name}
+                        </button>
+                        <button
+                          onClick={() => deleteFilterPreset(preset.id)}
+                          className="text-gray-400 hover:text-red-600 font-bold"
+                          title="Delete preset"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Overdue Section */}
@@ -1418,6 +1699,74 @@ export default function TodoPage() {
                       ))}
                     </div>
                   )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Save Filter Preset Modal */}
+        {showSavePresetModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
+              <div className="border-b border-gray-200 px-6 py-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold text-gray-900">Save Filter Preset</h2>
+                  <button
+                    onClick={() => {
+                      setShowSavePresetModal(false);
+                      setPresetName('');
+                    }}
+                    className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Current Filter Settings:</h3>
+                  <div className="space-y-1 text-sm text-gray-600 bg-gray-50 p-3 rounded">
+                    {searchQuery && <p>• Search: "{searchQuery}"</p>}
+                    {priorityFilter !== 'all' && <p>• Priority: {priorityFilter.toUpperCase()}</p>}
+                    {tagFilter && <p>• Tag: {tags.find(t => t.id === tagFilter)?.name}</p>}
+                    {completionFilter !== 'all' && <p>• Status: {completionFilter}</p>}
+                    {dueDateFrom && <p>• From: {dueDateFrom}</p>}
+                    {dueDateTo && <p>• To: {dueDateTo}</p>}
+                    {!hasActiveFilters() && <p className="text-gray-400">No active filters</p>}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Preset Name</label>
+                  <input
+                    type="text"
+                    value={presetName}
+                    onChange={(e) => setPresetName(e.target.value)}
+                    placeholder="e.g., This week's work tasks"
+                    maxLength={50}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={saveFilterPreset}
+                    className="flex-1 px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowSavePresetModal(false);
+                      setPresetName('');
+                    }}
+                    className="flex-1 px-6 py-2 bg-gray-200 text-gray-800 font-medium rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors"
+                  >
+                    Cancel
+                  </button>
                 </div>
               </div>
             </div>
