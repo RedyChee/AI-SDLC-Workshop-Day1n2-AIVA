@@ -45,7 +45,7 @@ export default function CalendarView({
           onClick={() => onMonthChange(subMonths(currentMonth, 1))}
           data-testid="calendar-prev"
         >
-          Prev
+          ← Prev
         </button>
         <div className="text-lg font-semibold" data-testid="calendar-month">
           {format(currentMonth, 'MMMM yyyy')}
@@ -62,7 +62,7 @@ export default function CalendarView({
           onClick={() => onMonthChange(addMonths(currentMonth, 1))}
           data-testid="calendar-next"
         >
-          Next
+          Next →
         </button>
       </div>
 
@@ -115,8 +115,10 @@ export default function CalendarView({
             >
               <div className="text-xs font-semibold">{date.getDate()}</div>
               {holiday && (
-                <div className="text-[10px] text-red-600 font-medium truncate" title={holiday}>
-                  {holiday}
+                <div className="mt-1">
+                  <span className="inline-block bg-red-100 text-red-700 text-[10px] px-2 py-0.5 rounded font-medium truncate max-w-full" title={holiday}>
+                    {holiday}
+                  </span>
                 </div>
               )}
               {dayTodos.length > 0 && (

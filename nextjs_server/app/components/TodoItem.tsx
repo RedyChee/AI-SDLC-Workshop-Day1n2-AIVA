@@ -62,6 +62,7 @@ export default function TodoItem({ todo, availableTags, onDeleted, onToggled, on
     medium: 'bg-amber-100 text-amber-800',
     low: 'bg-blue-100 text-blue-800',
   }
+  const priorityLabel = todo.priority.charAt(0).toUpperCase() + todo.priority.slice(1)
 
   const now = new Date()
   const today = now.toISOString().split('T')[0]
@@ -196,13 +197,13 @@ export default function TodoItem({ todo, availableTags, onDeleted, onToggled, on
                   <option value="low">Low</option>
                 </select>
                 <span className={`badge ${priorityColors[todo.priority as keyof typeof priorityColors]}`}>
-                  {todo.priority}
+                  {priorityLabel}
                 </span>
               </div>
             )}
             {isEditing && (
               <span className={`badge ${priorityColors[todo.priority as keyof typeof priorityColors]}`}>
-                {todo.priority.charAt(0).toUpperCase() + todo.priority.slice(1)}
+                {priorityLabel}
               </span>
             )}
             {todo.due_date && (

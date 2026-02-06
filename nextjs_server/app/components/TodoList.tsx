@@ -21,7 +21,7 @@ export default function TodoList({
   if (todos.length === 0) {
     return (
       <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-        <p className="text-gray-600">No todos yet. Create one to get started!</p>
+        <p className="text-gray-600">No todos yet. Add one above!</p>
       </div>
     )
   }

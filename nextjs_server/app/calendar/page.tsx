@@ -66,14 +66,14 @@ function CalendarPageContent() {
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Calendar</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Holiday Calendar</h1>
             <p className="text-sm text-gray-600">Monthly view of your todos.</p>
           </div>
           <button
             className="btn btn-secondary"
             onClick={() => router.push('/')}
           >
-            Back to list
+            ← Back to Todos
           </button>
         </div>
 

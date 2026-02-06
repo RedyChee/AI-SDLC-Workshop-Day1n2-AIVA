@@ -35,6 +35,7 @@ export default function Home() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [notificationStatus, setNotificationStatus] = useState<'default' | 'granted' | 'denied'>('default')
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
+  const [showTemplatesModal, setShowTemplatesModal] = useState(false)
 
   const [tagName, setTagName] = useState('')
   const [tagColor, setTagColor] = useState('#2563eb')
@@ -53,6 +54,19 @@ export default function Home() {
     : null
 
   useNotifications()
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotificationStatus(Notification.permission)
+    }
+  }, [])
+
+  const handleEnableNotifications = async () => {
+    if (Notification.permission === 'default') {
+      const permission = await Notification.requestPermission()
+      setNotificationStatus(permission)
+    }
+  }
 
   const fetchTodos = useCallback(async () => {
     try {
@@ -320,35 +334,68 @@ export default function Home() {
             </div>
             <nav className="flex items-center gap-2">
               <button
-                className={`px-3 py-2 rounded-lg font-medium text-sm ${
+                className={`px-3 py-2 rounded-lg font-medium text-sm inline-flex items-center gap-2 ${
                   activeTab === 'list' ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200'
                 }`}
                 onClick={() => setActiveTab('list')}
                 data-testid="nav-list"
               >
+                <span className="inline-flex h-4 w-4 items-center justify-center">
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                    <circle cx="5" cy="10" r="1.5" />
+                    <circle cx="10" cy="10" r="1.5" />
+                    <circle cx="15" cy="10" r="1.5" />
+                  </svg>
+                </span>
                 Data
               </button>
               <button
-                className={`px-3 py-2 rounded-lg font-medium text-sm ${
+                className={`px-3 py-2 rounded-lg font-medium text-sm inline-flex items-center gap-2 ${
                   activeTab === 'calendar' ? 'bg-purple-600 text-white' : 'bg-white border border-gray-200'
                 }`}
                 onClick={() => setActiveTab('calendar')}
                 data-testid="nav-calendar"
               >
+                <span className="inline-flex h-4 w-4 items-center justify-center">
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                    <path d="M6 2v2H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2V2h-2v2H8V2H6zm10 7H4v7h12V9z" />
+                  </svg>
+                </span>
                 Calendar
               </button>
               <button
-                className={`px-3 py-2 rounded-lg font-medium text-sm ${
-                  activeTab === 'templates' ? 'bg-blue-500 text-white' : 'bg-white border border-gray-200'
+                className={`px-3 py-2 rounded-lg font-medium text-sm inline-flex items-center gap-2 ${
+                  activeTab === 'templates' || showTemplatesModal ? 'bg-blue-500 text-white' : 'bg-white border border-gray-200'
                 }`}
-                onClick={() => setActiveTab('templates')}
+                onClick={() => {
+                  setActiveTab('templates')
+                  setShowTemplatesModal(true)
+                }}
                 data-testid="nav-templates"
               >
+                <span className="inline-flex h-4 w-4 items-center justify-center">
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                    <path d="M5 3h7l3 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm6 1.5V7h2.5L11 4.5z" />
+                  </svg>
+                </span>
                 Templates
               </button>
-              <button className="px-3 py-2 rounded-lg bg-orange-500 text-white hover:bg-orange-600 font-medium text-sm">
-                Alerts
-              </button>
+              <div className="relative">
+                <button
+                  onClick={handleEnableNotifications}
+                  className="px-3 py-2 rounded-lg bg-orange-500 text-white hover:bg-orange-600 font-medium text-sm"
+                  aria-label="Enable browser notifications"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
+                    <path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm6-6V11a6 6 0 1 0-12 0v5l-2 2v1h16v-1l-2-2z" />
+                  </svg>
+                </button>
+                {notificationStatus !== 'granted' && (
+                  <div className="absolute right-0 mt-2 w-64 rounded-md bg-gray-900 text-white text-xs px-3 py-2">
+                    Enable browser notifications for reminders
+                  </div>
+                )}
+              </div>
               <button className="px-3 py-2 rounded-lg bg-gray-700 text-white hover:bg-gray-800 font-medium text-sm">
                 Logout
               </button>
@@ -359,7 +406,12 @@ export default function Home() {
             {activeTab === 'list' && (
               <>
                 <div className="card p-6">
-                  <TodoForm onTodoAdded={handleTodoAdded} tags={tags} />
+                  <TodoForm
+                    onTodoAdded={handleTodoAdded}
+                    tags={tags}
+                    templates={templates}
+                    onUseTemplate={handleUseTemplate}
+                  />
                 </div>
 
                 <div className="flex flex-col lg:flex-row gap-4">
@@ -385,9 +437,12 @@ export default function Home() {
                       <option value="overdue">Overdue</option>
                     </select>
                     <button
-                      className="btn btn-secondary"
+                      className="btn btn-secondary inline-flex items-center gap-2"
                       onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
                     >
+                      <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                        <path d="M7 5l6 5-6 5V5z" />
+                      </svg>
                       Advanced
                     </button>
                   </div>
@@ -628,6 +683,86 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* Templates Modal */}
+      {showTemplatesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-2xl p-6 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold">My Templates</h2>
+              <button
+                onClick={() => setShowTemplatesModal(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            {templates.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                No templates yet. Create a todo and save it as a template!
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {templates.map((template: any) => {
+                  const subtaskCount = template.subtasks_json
+                    ? JSON.parse(template.subtasks_json).length
+                    : 0
+                  return (
+                    <div key={template.id} className="border border-gray-200 rounded-lg p-4" data-testid="template-item">
+                      <div className="font-semibold mb-1">{template.name}</div>
+                      <div className="text-sm text-gray-600 mb-1">
+                        <span className="font-medium">Title:</span> {template.title}
+                      </div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium text-sm">Priority:</span>
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                          template.priority === 'high' ? 'bg-red-100 text-red-700' :
+                          template.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-blue-100 text-blue-700'
+                        }`}>
+                          {template.priority?.charAt(0).toUpperCase() + template.priority?.slice(1)}
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-600 mb-3">{subtaskCount}</div>
+                      <div className="flex gap-2">
+                        <button
+                          className="btn btn-primary text-sm"
+                          onClick={() => {
+                            handleUseTemplate(template.id)
+                            setShowTemplatesModal(false)
+                          }}
+                          data-testid="template-use"
+                        >
+                          Use Template
+                        </button>
+                        <button
+                          className="btn bg-red-500 text-white hover:bg-red-600 text-sm"
+                          onClick={async () => {
+                            if (confirm('Delete this template?')) {
+                              await fetch(`/api/templates/${template.id}`, { method: 'DELETE' })
+                              fetchTemplates()
+                            }
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            <button
+              onClick={() => setShowTemplatesModal(false)}
+              className="btn btn-secondary w-full mt-6"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

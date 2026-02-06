@@ -1,11 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { Tag } from '@/lib/types'
+import { Tag, Template } from '@/lib/types'
 
 interface TodoFormProps {
   onTodoAdded: () => void
   tags: Tag[]
+  templates: Template[]
+  onUseTemplate: (templateId: string) => void
 }
 
 const REMINDER_OPTIONS = [
@@ -19,7 +21,7 @@ const REMINDER_OPTIONS = [
   { label: '1 week before', value: '10080' },
 ]
 
-export default function TodoForm({ onTodoAdded, tags }: TodoFormProps) {
+export default function TodoForm({ onTodoAdded, tags, templates, onUseTemplate }: TodoFormProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium')
@@ -32,6 +34,7 @@ export default function TodoForm({ onTodoAdded, tags }: TodoFormProps) {
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selectedTemplateId, setSelectedTemplateId] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -102,7 +105,6 @@ export default function TodoForm({ onTodoAdded, tags }: TodoFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <h2 className="text-xl font-bold text-gray-900">Add a new todo...</h2>
 
       <div className="flex flex-col sm:flex-row gap-4">
         <input
@@ -151,13 +153,21 @@ export default function TodoForm({ onTodoAdded, tags }: TodoFormProps) {
       <button
         type="button"
         onClick={() => setShowAdvanced(!showAdvanced)}
-        className="text-blue-600 text-sm hover:underline"
+        className="text-blue-600 text-sm hover:underline inline-flex items-center gap-2"
       >
-        {showAdvanced ? 'Hide advanced options' : 'Show advanced options'}
+        <span
+          className={`inline-flex transition-transform ${showAdvanced ? 'rotate-90' : ''}`}
+          aria-hidden="true"
+        >
+          <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3">
+            <path d="M7 5l6 5-6 5V5z" />
+          </svg>
+        </span>
+        {showAdvanced ? 'Hide Advanced Options' : 'Show Advanced Options'}
       </button>
 
       {showAdvanced && (
-        <div className="space-y-4 p-4 bg-gray-50 rounded border border-gray-200">
+        <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">Description</label>
             <textarea
@@ -167,24 +177,60 @@ export default function TodoForm({ onTodoAdded, tags }: TodoFormProps) {
               disabled={isLoading}
             />
           </div>
+          <div className="flex flex-col lg:flex-row gap-4">
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                id="recurring"
+                checked={isRecurring}
+                onChange={(e) => setIsRecurring(e.target.checked)}
+                className="w-4 h-4"
+                disabled={isLoading}
+                data-testid="todo-recurring"
+              />
+              Repeat
+            </label>
+            <div className="flex-1">
+              <label className="block text-sm font-medium mb-1">Reminder</label>
+              <select
+                value={reminderMinutes}
+                onChange={(e) => setReminderMinutes(e.target.value)}
+                className="input"
+                disabled={isLoading || !dueDate}
+              >
+                {REMINDER_OPTIONS.map(option => (
+                  <option key={option.label} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              {!dueDate && (
+                <p className="text-xs text-gray-500 mt-1">Set a due date to enable reminders.</p>
+              )}
+            </div>
+          </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Reminder</label>
+          <div className="flex flex-col lg:flex-row gap-3 items-center">
+            <label className="text-sm font-medium">Use Template:</label>
             <select
-              value={reminderMinutes}
-              onChange={(e) => setReminderMinutes(e.target.value)}
+              value={selectedTemplateId}
+              onChange={(e) => {
+                const value = e.target.value
+                setSelectedTemplateId(value)
+                if (value) {
+                  onUseTemplate(value)
+                  setSelectedTemplateId('')
+                }
+              }}
               className="input"
-              disabled={isLoading || !dueDate}
             >
-              {REMINDER_OPTIONS.map(option => (
-                <option key={option.label} value={option.value}>
-                  {option.label}
+              <option value="">Select a template...</option>
+              {templates.map(template => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
                 </option>
               ))}
             </select>
-            {!dueDate && (
-              <p className="text-xs text-gray-500 mt-1">Set a due date to enable reminders.</p>
-            )}
           </div>
 
           <div>
@@ -209,21 +255,6 @@ export default function TodoForm({ onTodoAdded, tags }: TodoFormProps) {
                 </button>
               ))}
             </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="recurring"
-              checked={isRecurring}
-              onChange={(e) => setIsRecurring(e.target.checked)}
-              className="w-4 h-4"
-              disabled={isLoading}
-              data-testid="todo-recurring"
-            />
-            <label htmlFor="recurring" className="font-medium">
-              Make this a recurring todo
-            </label>
           </div>
 
           {isRecurring && (
