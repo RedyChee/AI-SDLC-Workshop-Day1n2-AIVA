@@ -224,14 +224,14 @@ This document provides a comprehensive checklist for evaluating the completeness
 - [x] E2E test: Delete tag
 - [x] E2E test: Assign multiple tags to todo
 - [x] E2E test: Filter by tag (needs UI implementation)
-- [x] E2E test: Comprehensive tag system tests (83 tests in 06-tag-system.spec.ts)
+- [ ] E2E test: Duplicate tag name validation
 - [x] Unit test: Tag name validation (13 tests in validation.test.ts)
 
 **Acceptance Criteria:**
-- [x] Tags unique per user
-- [x] Custom colors work
-- [x] Editing tag updates all todos
-- [x] Deleting tag removes from todos
+- [ ] Tags unique per user
+- [ ] Custom colors work
+- [ ] Editing tag updates all todos
+- [ ] Deleting tag removes from todos
 - [ ] Filter works correctly
 
 ---
