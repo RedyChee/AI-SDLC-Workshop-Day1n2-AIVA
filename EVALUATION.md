@@ -228,10 +228,10 @@ This document provides a comprehensive checklist for evaluating the completeness
 - [x] Unit test: Tag name validation (13 tests in validation.test.ts)
 
 **Acceptance Criteria:**
-- [ ] Tags unique per user
-- [ ] Custom colors work
-- [ ] Editing tag updates all todos
-- [ ] Deleting tag removes from todos
+- [x] Tags unique per user
+- [x] Custom colors work
+- [x] Editing tag updates all todos
+- [x] Deleting tag removes from todos
 - [ ] Filter works correctly
 
 ---
