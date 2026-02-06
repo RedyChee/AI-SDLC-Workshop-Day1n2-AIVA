@@ -18,7 +18,7 @@ export default function CalendarPage() {
   const router = useRouter();
   const [currentMonth, setCurrentMonth] = useState(() => {
     const now = getSingaporeNow();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return `${now.year}-${String(now.month).padStart(2, '0')}`;
   });
   const [todos, setTodos] = useState<Todo[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
@@ -51,12 +51,13 @@ export default function CalendarPage() {
     const startDayOfWeek = firstDay.getDay();
 
     const days: CalendarDay[] = [];
-    const todayStr = formatSingaporeDate(getSingaporeNow());
+    const now = getSingaporeNow();
+    const todayStr = `${now.year}-${String(now.month).padStart(2, '0')}-${String(now.day).padStart(2, '0')}`;
 
     // Previous month days
     for (let i = 0; i < startDayOfWeek; i++) {
       const date = new Date(year, monthNum - 1, -startDayOfWeek + i + 1);
-      const dateStr = formatSingaporeDate(date);
+      const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
       days.push({
         date: dateStr,
         dayNumber: date.getDate(),
@@ -84,7 +85,7 @@ export default function CalendarPage() {
     const remainingCells = 42 - days.length;
     for (let i = 1; i <= remainingCells; i++) {
       const date = new Date(year, monthNum, i);
-      const dateStr = formatSingaporeDate(date);
+      const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
       days.push({
         date: dateStr,
         dayNumber: i,
@@ -112,7 +113,7 @@ export default function CalendarPage() {
 
   const goToToday = () => {
     const now = getSingaporeNow();
-    setCurrentMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+    setCurrentMonth(`${now.year}-${String(now.month).padStart(2, '0')}`);
   };
 
   const getMonthYearDisplay = () => {
