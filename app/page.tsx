@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { getSingaporeNow } from '@/lib/timezone';
 
 interface Subtask {
   id: number;
@@ -33,6 +34,22 @@ interface Template {
   subtasks_json: string | null;
   due_date_offset_days: number | null;
   created_at: string;
+}
+
+interface Holiday {
+  id: number;
+  date: string;
+  name: string;
+  created_at: string;
+}
+
+interface CalendarDay {
+  date: string;
+  dayNumber: number;
+  isCurrentMonth: boolean;
+  isToday: boolean;
+  todos: Todo[];
+  holiday: Holiday | null;
 }
 
 interface Todo {
@@ -92,6 +109,13 @@ export default function HomePage() {
   const [templateName, setTemplateName] = useState('');
   const [templateDescription, setTemplateDescription] = useState('');
   const [templateCategory, setTemplateCategory] = useState('');
+  
+  // Phase 4: Calendar state
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const now = getSingaporeNow();
+    return `${now.year}-${String(now.month).padStart(2, '0')}`;
+  });
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
   
   // Edit modal state
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
@@ -153,8 +177,16 @@ export default function HomePage() {
       fetchTodos();
       fetchTags();
       fetchTemplates();
+      fetchCalendarData(currentMonth);
     }
   }, [user]);
+
+  // Fetch calendar when month changes
+  useEffect(() => {
+    if (user) {
+      fetchCalendarData(currentMonth);
+    }
+  }, [currentMonth, user]);
 
   const fetchUser = async () => {
     try {
@@ -367,6 +399,109 @@ export default function HomePage() {
       }
     };
     input.click();
+  };
+
+  // Phase 4: Calendar functions
+  const fetchCalendarData = async (month: string) => {
+    try {
+      const response = await fetch(`/api/calendar?month=${month}`);
+      if (response.ok) {
+        const data = await response.json();
+        setHolidays(data.holidays);
+      }
+    } catch (error) {
+      console.error('Failed to fetch calendar data:', error);
+    }
+  };
+
+  const generateCalendarDays = (): CalendarDay[] => {
+    const [year, monthNum] = currentMonth.split('-').map(Number);
+    const firstDay = new Date(year, monthNum - 1, 1);
+    const lastDay = new Date(year, monthNum, 0);
+    const startDayOfWeek = firstDay.getDay();
+
+    const days: CalendarDay[] = [];
+    const now = getSingaporeNow();
+    const todayStr = `${now.year}-${String(now.month).padStart(2, '0')}-${String(now.day).padStart(2, '0')}`;
+
+    // Previous month days
+    for (let i = 0; i < startDayOfWeek; i++) {
+      const date = new Date(year, monthNum - 1, -startDayOfWeek + i + 1);
+      const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      days.push({
+        date: dateStr,
+        dayNumber: date.getDate(),
+        isCurrentMonth: false,
+        isToday: false,
+        todos: [],
+        holiday: null,
+      });
+    }
+
+    // Current month days
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+      const dateStr = `${year}-${String(monthNum).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const dayTodos = todos.filter((t) => t.due_date?.startsWith(dateStr));
+      days.push({
+        date: dateStr,
+        dayNumber: d,
+        isCurrentMonth: true,
+        isToday: dateStr === todayStr,
+        todos: dayTodos,
+        holiday: holidays.find((h) => h.date === dateStr) || null,
+      });
+    }
+
+    // Next month days
+    const remainingCells = 42 - days.length;
+    for (let i = 1; i <= remainingCells; i++) {
+      const date = new Date(year, monthNum, i);
+      const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      days.push({
+        date: dateStr,
+        dayNumber: i,
+        isCurrentMonth: false,
+        isToday: false,
+        todos: [],
+        holiday: null,
+      });
+    }
+
+    return days;
+  };
+
+  const previousMonth = () => {
+    const [year, month] = currentMonth.split('-').map(Number);
+    const date = new Date(year, month - 2, 1);
+    setCurrentMonth(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
+  };
+
+  const nextMonth = () => {
+    const [year, month] = currentMonth.split('-').map(Number);
+    const date = new Date(year, month, 1);
+    setCurrentMonth(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
+  };
+
+  const goToToday = () => {
+    const now = getSingaporeNow();
+    setCurrentMonth(`${now.year}-${String(now.month).padStart(2, '0')}`);
+  };
+
+  const getMonthYearDisplay = () => {
+    const [year, month] = currentMonth.split('-').map(Number);
+    const date = new Date(year, month - 1, 1);
+    return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  };
+
+  const getPriorityColorForCalendar = (priority: Priority) => {
+    switch (priority) {
+      case 'high':
+        return 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200';
+      case 'medium':
+        return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200';
+      case 'low':
+        return 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200';
+    }
   };
 
   const handleLogout = async () => {
@@ -884,12 +1019,6 @@ export default function HomePage() {
           {/* Phase 4: Action Buttons */}
           <div className="flex gap-2 flex-wrap">
             <button
-              onClick={() => router.push('/calendar')}
-              className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
-            >
-              📅 Calendar
-            </button>
-            <button
               onClick={() => setShowTemplateModal(true)}
               className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
             >
@@ -923,10 +1052,15 @@ export default function HomePage() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Add Todo Form */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-          <form onSubmit={handleAddTodo} className="space-y-4">
+      <main className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Two Column Layout: Left (Form + Calendar), Right (Search + Lists) */}
+        <div className="flex flex-col lg:flex-row gap-6">
+          
+          {/* LEFT SIDE: Form and Calendar stacked - 60% */}
+          <div className="flex-[3] space-y-6">
+            {/* Add Todo Form */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+              <form onSubmit={handleAddTodo} className="space-y-4">
             <div>
               <input
                 type="text"
@@ -1093,8 +1227,106 @@ export default function HomePage() {
           </form>
         </div>
 
+            {/* Calendar View */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+              <div className="p-4">
+                {/* Calendar Navigation */}
+                <div className="mb-4 flex items-center justify-between">
+                  <button
+                    onClick={previousMonth}
+                    className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                  >
+                    ◀
+                  </button>
+                  <div className="flex items-center gap-4">
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">{getMonthYearDisplay()}</h2>
+                    <button
+                      onClick={goToToday}
+                      className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded transition-colors"
+                    >
+                      Today
+                    </button>
+                  </div>
+                  <button
+                    onClick={nextMonth}
+                    className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                  >
+                    ▶
+                  </button>
+                </div>
+
+                {/* Calendar Grid */}
+                <div>
+                  {/* Day Headers */}
+                  <div className="grid grid-cols-7 bg-gray-100 dark:bg-gray-700">
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                      <div
+                        key={day}
+                        className="py-2 text-center text-sm font-semibold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-600"
+                      >
+                        {day}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Calendar Days */}
+                  <div className="grid grid-cols-7">
+                    {generateCalendarDays().map((day, index) => (
+                      <div
+                        key={index}
+                        className={`min-h-[100px] border-r border-b border-gray-200 dark:border-gray-600 p-2 ${
+                          !day.isCurrentMonth ? 'bg-gray-50 dark:bg-gray-900' : ''
+                        } ${day.isToday ? 'bg-blue-50 dark:bg-blue-900/20 ring-2 ring-blue-500' : ''} ${
+                          day.holiday ? 'bg-green-50 dark:bg-green-900/20' : ''
+                        }`}
+                      >
+                        <div
+                          className={`text-sm font-semibold mb-1 ${
+                            !day.isCurrentMonth
+                              ? 'text-gray-400 dark:text-gray-600'
+                              : 'text-gray-900 dark:text-white'
+                          } ${day.isToday ? 'text-blue-600 dark:text-blue-400' : ''}`}
+                        >
+                          {day.dayNumber}
+                        </div>
+
+                        {/* Holiday */}
+                        {day.holiday && (
+                          <div className="text-xs text-green-700 dark:text-green-300 font-medium mb-1 truncate">
+                            🎉 {day.holiday.name}
+                          </div>
+                        )}
+
+                        {/* Todos */}
+                        <div className="space-y-1">
+                          {day.todos.slice(0, 2).map((todo) => (
+                            <div
+                              key={todo.id}
+                              className={`text-xs px-1 py-0.5 rounded truncate ${getPriorityColorForCalendar(todo.priority)}`}
+                              title={todo.title}
+                            >
+                              {todo.completed ? '✓ ' : ''}
+                              {todo.title}
+                            </div>
+                          ))}
+                          {day.todos.length > 2 && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400 px-1">
+                              +{day.todos.length - 2}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT SIDE: Search and Todo Lists - 40% */}
+          <div className="flex-[2] space-y-6">
         {/* Filters */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <div className="flex gap-4 flex-wrap items-end">
             <div className="flex-1 min-w-[200px]">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1261,7 +1493,8 @@ export default function HomePage() {
             </p>
           </div>
         )}
-      </main>
+          </div> {/* End Right Side */}
+        </div> {/* End Two Column Layout */}
 
       {/* Edit Modal */}
       {editingTodo && (
@@ -1717,6 +1950,7 @@ export default function HomePage() {
           </div>
         </div>
       )}
+      </main>
     </div>
   );
 }
