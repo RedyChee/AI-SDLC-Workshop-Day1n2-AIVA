@@ -72,7 +72,8 @@ export default function TodoForm({ onTodoAdded, tags }: TodoFormProps) {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to create todo')
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create todo')
       }
 
       setTitle('')

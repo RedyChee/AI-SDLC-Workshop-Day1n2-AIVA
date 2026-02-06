@@ -22,11 +22,15 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
+    console.log('POST /api/todos body:', body)
+    
     const validated = CreateTodoSchema.parse(body)
+    console.log('POST /api/todos validated:', validated)
 
+    // Allow due dates from today onwards (not past dates)
     const today = formatSingaporeDate(getSingaporeNow())
     if (validated.due_date && validated.due_date < today) {
-      return NextResponse.json({ error: 'Due date must be in the future' }, { status: 400 })
+      return NextResponse.json({ error: 'Due date cannot be in the past' }, { status: 400 })
     }
     if (validated.is_recurring && !validated.due_date) {
       return NextResponse.json({ error: 'Recurring todos require a due date' }, { status: 400 })
@@ -52,8 +56,10 @@ export async function POST(request: NextRequest) {
     )
   } catch (error) {
     console.error('POST /api/todos error:', error)
+    // Return more detailed error information
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create todo'
     return NextResponse.json(
-      { error: 'Failed to create todo' },
+      { error: errorMessage },
       { status: 400 }
     )
   }
