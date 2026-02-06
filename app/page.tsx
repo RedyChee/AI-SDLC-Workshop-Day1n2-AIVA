@@ -29,6 +29,9 @@ export default function TodoPage() {
   const [editTitle, setEditTitle] = useState('');
   const [editPriority, setEditPriority] = useState<Priority>('medium');
   const [editDueDate, setEditDueDate] = useState('');
+  
+  // Filter state
+  const [priorityFilter, setPriorityFilter] = useState<Priority | 'all'>('all');
 
   // Fetch todos on mount
   useEffect(() => {
@@ -239,16 +242,39 @@ export default function TodoPage() {
     }
   };
 
-  // Organize todos into sections
-  const overdueTodos = todos.filter(t => !t.completed && t.due_date && isOverdue(t.due_date));
-  const pendingTodos = todos.filter(t => !t.completed && (!t.due_date || !isOverdue(t.due_date)));
-  const completedTodos = todos.filter(t => t.completed);
+  // Organize todos into sections with priority filtering
+  const filteredTodos = priorityFilter === 'all' 
+    ? todos 
+    : todos.filter(todo => todo.priority === priorityFilter);
+  
+  const overdueTodos = filteredTodos.filter(t => !t.completed && t.due_date && isOverdue(t.due_date));
+  const pendingTodos = filteredTodos.filter(t => !t.completed && (!t.due_date || !isOverdue(t.due_date)));
+  const completedTodos = filteredTodos.filter(t => t.completed);
+  
+  // Priority statistics
+  const priorityCounts = {
+    high: todos.filter(t => !t.completed && t.priority === 'high').length,
+    medium: todos.filter(t => !t.completed && t.priority === 'medium').length,
+    low: todos.filter(t => !t.completed && t.priority === 'low').length,
+  };
 
   const getPriorityColor = (priority: Priority): string => {
     switch (priority) {
-      case 'high': return 'bg-red-100 text-red-800 border-red-300';
-      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-300';
-      case 'low': return 'bg-blue-100 text-blue-800 border-blue-300';
+      case 'high': return 'bg-red-100 text-red-800 border-red-300 dark:bg-red-900 dark:text-red-200 dark:border-red-700';
+      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900 dark:text-yellow-200 dark:border-yellow-700';
+      case 'low': return 'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700';
+    }
+  };
+  
+  const getPriorityLabel = (priority: Priority): string => {
+    return priority.toUpperCase();
+  };
+  
+  const getPriorityEmoji = (priority: Priority): string => {
+    switch (priority) {
+      case 'high': return '🔴';
+      case 'medium': return '🟡';
+      case 'low': return '🔵';
     }
   };
 
@@ -267,8 +293,8 @@ export default function TodoPage() {
         </h3>
         
         <div className="flex flex-wrap gap-2 mt-2">
-          <span className={`px-2 py-1 text-xs font-medium rounded border ${getPriorityColor(todo.priority)}`}>
-            {todo.priority.toUpperCase()}
+          <span className={`px-2 py-1 text-xs font-semibold rounded-full border ${getPriorityColor(todo.priority)}`}>
+            {getPriorityLabel(todo.priority)}
           </span>
 
           {todo.due_date && (
@@ -371,9 +397,9 @@ export default function TodoPage() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   disabled={isSubmitting}
                 >
-                  <option value="low">Low Priority</option>
-                  <option value="medium">Medium Priority</option>
-                  <option value="high">High Priority</option>
+                  <option value="high">🔴 High Priority</option>
+                  <option value="medium">🟡 Medium Priority</option>
+                  <option value="low">🔵 Low Priority</option>
                 </select>
               </div>
 
@@ -399,6 +425,47 @@ export default function TodoPage() {
             </button>
           </div>
         </form>
+
+        {/* Priority Filter and Statistics */}
+        <div className="mb-6 p-4 bg-white rounded-lg shadow-md">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">Filter by Priority:</label>
+              <select
+                value={priorityFilter}
+                onChange={(e) => setPriorityFilter(e.target.value as Priority | 'all')}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All Priorities</option>
+                <option value="high">🔴 High</option>
+                <option value="medium">🟡 Medium</option>
+                <option value="low">🔵 Low</option>
+              </select>
+            </div>
+            
+            {/* Priority Statistics */}
+            <div className="flex gap-4 text-sm">
+              <div className="flex items-center gap-1.5">
+                <span className="px-2 py-1 bg-red-100 text-red-800 border border-red-300 rounded-full text-xs font-semibold">
+                  HIGH
+                </span>
+                <span className="text-gray-600">{priorityCounts.high}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="px-2 py-1 bg-yellow-100 text-yellow-800 border border-yellow-300 rounded-full text-xs font-semibold">
+                  MED
+                </span>
+                <span className="text-gray-600">{priorityCounts.medium}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="px-2 py-1 bg-blue-100 text-blue-800 border border-blue-300 rounded-full text-xs font-semibold">
+                  LOW
+                </span>
+                <span className="text-gray-600">{priorityCounts.low}</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Overdue Section */}
         {overdueTodos.length > 0 && (
@@ -474,9 +541,9 @@ export default function TodoPage() {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     disabled={isSubmitting}
                   >
-                    <option value="low">Low Priority</option>
-                    <option value="medium">Medium Priority</option>
-                    <option value="high">High Priority</option>
+                    <option value="high">🔴 High Priority</option>
+                    <option value="medium">🟡 Medium Priority</option>
+                    <option value="low">🔵 Low Priority</option>
                   </select>
                 </div>
 

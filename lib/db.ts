@@ -194,6 +194,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_todos_user_id ON todos(user_id);
   CREATE INDEX IF NOT EXISTS idx_todos_due_date ON todos(due_date);
   CREATE INDEX IF NOT EXISTS idx_todos_completed ON todos(completed);
+  CREATE INDEX IF NOT EXISTS idx_todos_user_priority ON todos(user_id, priority);
   CREATE INDEX IF NOT EXISTS idx_subtasks_todo_id ON subtasks(todo_id);
   CREATE INDEX IF NOT EXISTS idx_tags_user_id ON tags(user_id);
   CREATE INDEX IF NOT EXISTS idx_authenticators_user_id ON authenticators(user_id);
@@ -366,6 +367,42 @@ export const todoDB = {
   delete: (id: number): void => {
     const stmt = db.prepare('DELETE FROM todos WHERE id = ?');
     stmt.run(id);
+  },
+
+  getByUserAndPriority: (userId: number, priority: Priority): Todo[] => {
+    const stmt = db.prepare(`
+      SELECT * FROM todos 
+      WHERE user_id = ? AND priority = ?
+      ORDER BY 
+        completed ASC,
+        CASE 
+          WHEN due_date IS NULL THEN 1
+          ELSE 0
+        END ASC,
+        due_date ASC,
+        created_at DESC
+    `);
+    const rows = stmt.all(userId, priority) as any[];
+    return rows.map(row => ({
+      ...row,
+      completed: Boolean(row.completed),
+    }));
+  },
+
+  countByPriority: (userId: number): Record<Priority, number> => {
+    const stmt = db.prepare(`
+      SELECT priority, COUNT(*) as count
+      FROM todos
+      WHERE user_id = ? AND completed = 0
+      GROUP BY priority
+    `);
+    const results = stmt.all(userId) as Array<{ priority: Priority; count: number }>;
+    
+    return {
+      high: results.find(r => r.priority === 'high')?.count || 0,
+      medium: results.find(r => r.priority === 'medium')?.count || 0,
+      low: results.find(r => r.priority === 'low')?.count || 0,
+    };
   },
 };
 
