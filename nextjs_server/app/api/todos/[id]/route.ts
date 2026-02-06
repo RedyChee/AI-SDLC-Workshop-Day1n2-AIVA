@@ -98,7 +98,7 @@ export async function PATCH(
       todo.recurrence_pattern &&
       todo.due_date
     ) {
-      todoDB.createNextRecurring(todo)
+      todoDB.createNextRecurring(updated)
     }
 
     return NextResponse.json({

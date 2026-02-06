@@ -12,9 +12,10 @@ interface TodoItemProps {
   onDeleted: () => void
   onToggled: () => void
   onUpdated: () => void
+  onTagClick?: (tagId: string) => void
 }
 
-export default function TodoItem({ todo, availableTags, onDeleted, onToggled, onUpdated }: TodoItemProps) {
+export default function TodoItem({ todo, availableTags, onDeleted, onToggled, onUpdated, onTagClick }: TodoItemProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -218,7 +219,7 @@ export default function TodoItem({ todo, availableTags, onDeleted, onToggled, on
             )}
             {todo.reminders[0] && (
               <span className="text-xs px-2 py-1 rounded bg-indigo-100 text-indigo-800">
-                Remind {todo.reminders[0].reminder_minutes}m
+                🔔 {todo.reminders[0].reminder_minutes}m
               </span>
             )}
             {todo.subtasks.length > 0 && (
@@ -227,13 +228,16 @@ export default function TodoItem({ todo, availableTags, onDeleted, onToggled, on
               </span>
             )}
             {todo.tags.map((tag: any) => (
-              <span
+              <button
                 key={tag.id}
+                type="button"
                 className="text-xs px-2 py-1 rounded text-white"
                 style={{ backgroundColor: tag.color }}
+                onClick={() => onTagClick?.(tag.id)}
+                data-testid="todo-tag-badge"
               >
                 {tag.name}
-              </span>
+              </button>
             ))}
           </div>
 

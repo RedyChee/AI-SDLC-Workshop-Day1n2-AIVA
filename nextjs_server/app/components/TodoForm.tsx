@@ -154,6 +154,7 @@ export default function TodoForm({ onTodoAdded, tags, templates, onUseTemplate }
         type="button"
         onClick={() => setShowAdvanced(!showAdvanced)}
         className="text-blue-600 text-sm hover:underline inline-flex items-center gap-2"
+        data-testid="todo-advanced-toggle"
       >
         <span
           className={`inline-flex transition-transform ${showAdvanced ? 'rotate-90' : ''}`}
@@ -196,6 +197,7 @@ export default function TodoForm({ onTodoAdded, tags, templates, onUseTemplate }
                 value={reminderMinutes}
                 onChange={(e) => setReminderMinutes(e.target.value)}
                 className="input"
+                data-testid="todo-reminder"
                 disabled={isLoading || !dueDate}
               >
                 {REMINDER_OPTIONS.map(option => (

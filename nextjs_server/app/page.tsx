@@ -36,6 +36,10 @@ export default function Home() {
   const [notificationStatus, setNotificationStatus] = useState<'default' | 'granted' | 'denied'>('default')
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
   const [showTemplatesModal, setShowTemplatesModal] = useState(false)
+  const [showTagModal, setShowTagModal] = useState(false)
+  const [editingTagId, setEditingTagId] = useState<string | null>(null)
+  const [editTagName, setEditTagName] = useState('')
+  const [editTagColor, setEditTagColor] = useState('#2563eb')
 
   const [tagName, setTagName] = useState('')
   const [tagColor, setTagColor] = useState('#2563eb')
@@ -45,6 +49,13 @@ export default function Home() {
   const [templateCategory, setTemplateCategory] = useState('')
   const [templateOffset, setTemplateOffset] = useState('0')
   const [templateSubtasks, setTemplateSubtasks] = useState('')
+
+  const activeTag = tags.find(tag => tag.id === tagFilter) || null
+  const hasActiveFilters =
+    priorityFilter !== 'all' ||
+    statusFilter !== 'all' ||
+    tagFilter !== 'all' ||
+    searchQuery.trim().length > 0
 
   const selectedTodos = selectedDate
     ? todos.filter(todo => todo.due_date === selectedDate)
@@ -219,6 +230,55 @@ export default function Home() {
 
   const handleTodoUpdated = () => {
     fetchTodos()
+  }
+
+  const handleTagClick = (tagId: string) => {
+    setTagFilter(tagId)
+    setShowAdvancedFilters(true)
+  }
+
+  const handleClearFilters = () => {
+    setPriorityFilter('all')
+    setStatusFilter('all')
+    setTagFilter('all')
+    setSearchInput('')
+    setSearchQuery('')
+  }
+
+  const startEditTag = (tagId: string) => {
+    const tag = tags.find(t => t.id === tagId)
+    if (!tag) return
+    setEditingTagId(tagId)
+    setEditTagName(tag.name)
+    setEditTagColor(tag.color)
+  }
+
+  const cancelEditTag = () => {
+    setEditingTagId(null)
+    setEditTagName('')
+    setEditTagColor('#2563eb')
+  }
+
+  const handleSaveTag = async (tagId: string) => {
+    const response = await fetch(`/api/tags/${tagId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: editTagName.trim(), color: editTagColor }),
+    })
+    if (response.ok) {
+      cancelEditTag()
+      fetchTags()
+    }
+  }
+
+  const handleDeleteTag = async (tagId: string) => {
+    if (!confirm('Delete this tag?')) return
+    const response = await fetch(`/api/tags/${tagId}`, { method: 'DELETE' })
+    if (response.ok) {
+      if (tagFilter === tagId) setTagFilter('all')
+      fetchTags()
+      fetchTodos()
+    }
   }
 
   const handleExport = async () => {
@@ -445,40 +505,106 @@ export default function Home() {
                       </svg>
                       Advanced
                     </button>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => setShowTagModal(true)}
+                      data-testid="manage-tags"
+                    >
+                      Manage Tags
+                    </button>
                   </div>
+                </div>
+
+                {hasActiveFilters && (
+                  <div className="card p-3 flex flex-wrap items-center gap-2">
+                    <span className="text-sm text-gray-600">Filters:</span>
+                    {searchQuery.trim() && (
+                      <button
+                        className="px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-xs"
+                        onClick={() => {
+                          setSearchInput('')
+                          setSearchQuery('')
+                        }}
+                      >
+                        Search: {searchQuery}
+                      </button>
+                    )}
+                    {priorityFilter !== 'all' && (
+                      <button
+                        className="px-2 py-1 rounded-full bg-purple-50 text-purple-700 text-xs"
+                        onClick={() => setPriorityFilter('all')}
+                      >
+                        Priority: {priorityFilter}
+                      </button>
+                    )}
+                    {statusFilter !== 'all' && (
+                      <button
+                        className="px-2 py-1 rounded-full bg-amber-50 text-amber-700 text-xs"
+                        onClick={() => setStatusFilter('all')}
+                      >
+                        Status: {statusFilter}
+                      </button>
+                    )}
+                    {activeTag && (
+                      <button
+                        className="px-2 py-1 rounded-full text-xs"
+                        style={{ backgroundColor: `${activeTag.color}22`, color: activeTag.color }}
+                        onClick={() => setTagFilter('all')}
+                      >
+                        Tag: {activeTag.name}
+                      </button>
+                    )}
+                    <button className="text-xs text-gray-600 ml-auto" onClick={handleClearFilters}>
+                      Clear all
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2 mb-4">
+                  <button className="btn btn-secondary" onClick={handleExport}>
+                    Export
+                  </button>
+                  <label className="btn btn-secondary cursor-pointer">
+                    Import
+                    <input
+                      type="file"
+                      accept="application/json"
+                      className="hidden"
+                      onChange={(e) => handleImport(e.target.files?.[0] || null)}
+                    />
+                  </label>
                 </div>
 
                 {showAdvancedFilters && (
                   <div className="card p-4 flex flex-col lg:flex-row gap-4">
                     <div className="flex-1">
                       <label className="block text-xs font-semibold text-gray-600 mb-1">Tag Filter</label>
-                      <select
-                        value={tagFilter}
-                        onChange={(e) => setTagFilter(e.target.value)}
-                        className="input"
-                      >
-                        <option value="all">All Tags</option>
-                        {tags.map((tag: any) => (
-                          <option key={tag.id} value={tag.id}>
-                            {tag.name}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={tagFilter}
+                          onChange={(e) => setTagFilter(e.target.value)}
+                          className="input"
+                        >
+                          <option value="all">All Tags</option>
+                          {tags.map((tag: any) => (
+                            <option key={tag.id} value={tag.id}>
+                              {tag.name}
+                            </option>
+                          ))}
+                        </select>
+                        {tagFilter !== 'all' && (
+                          <button className="text-xs text-gray-600" onClick={() => setTagFilter('all')}>
+                            Clear
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-end gap-2">
-                      <button className="btn btn-secondary" onClick={handleExport}>
-                        Export
-                      </button>
-                      <label className="btn btn-secondary cursor-pointer">
-                        Import
-                        <input
-                          type="file"
-                          accept="application/json"
-                          className="hidden"
-                          onChange={(e) => handleImport(e.target.files?.[0] || null)}
-                        />
-                      </label>
-                    </div>
+                  </div>
+                )}
+
+                {importStatus && (
+                  <div className="text-sm text-gray-600" data-testid="import-status">
+                    {importStatus}
                   </div>
                 )}
 
@@ -512,6 +638,7 @@ export default function Home() {
                       onTodoDeleted={handleTodoDeleted}
                       onTodoToggled={handleTodoToggled}
                       onTodoUpdated={handleTodoUpdated}
+                      onTagClick={handleTagClick}
                     />
                   </div>
                 )}
@@ -527,32 +654,10 @@ export default function Home() {
                       onTodoDeleted={handleTodoDeleted}
                       onTodoToggled={handleTodoToggled}
                       onTodoUpdated={handleTodoUpdated}
+                      onTagClick={handleTagClick}
                     />
                   </div>
                 )}
-
-                <div className="card p-4">
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Tag Manager</h3>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <input
-                      className="input flex-1"
-                      placeholder="New tag name"
-                      value={tagName}
-                      onChange={(e) => setTagName(e.target.value)}
-                      data-testid="tag-name-input"
-                    />
-                    <input
-                      type="color"
-                      value={tagColor}
-                      onChange={(e) => setTagColor(e.target.value)}
-                      className="h-10 w-14 rounded border border-gray-200"
-                      data-testid="tag-color-input"
-                    />
-                    <button className="btn btn-primary" onClick={handleCreateTag} data-testid="tag-create">
-                      Add Tag
-                    </button>
-                  </div>
-                </div>
               </>
             )}
 
@@ -693,6 +798,7 @@ export default function Home() {
               <button
                 onClick={() => setShowTemplatesModal(false)}
                 className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                data-testid="templates-modal-close"
               >
                 ×
               </button>
@@ -756,6 +862,103 @@ export default function Home() {
 
             <button
               onClick={() => setShowTemplatesModal(false)}
+              className="btn btn-secondary w-full mt-6"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Tag Manager Modal */}
+      {showTagModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-2xl p-6 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold">Manage Tags</h2>
+              <button
+                onClick={() => setShowTagModal(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                data-testid="tags-modal-close"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="card p-4 mb-6">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  className="input flex-1"
+                  placeholder="New tag name"
+                  value={tagName}
+                  onChange={(e) => setTagName(e.target.value)}
+                  data-testid="tag-name-input"
+                />
+                <input
+                  type="color"
+                  value={tagColor}
+                  onChange={(e) => setTagColor(e.target.value)}
+                  className="h-10 w-14 rounded border border-gray-200"
+                  data-testid="tag-color-input"
+                />
+                <button className="btn btn-primary" onClick={handleCreateTag} data-testid="tag-create">
+                  Add Tag
+                </button>
+              </div>
+            </div>
+
+            {tags.length === 0 ? (
+              <div className="text-center py-10 text-gray-500">No tags yet.</div>
+            ) : (
+              <div className="space-y-3">
+                {tags.map(tag => (
+                  <div key={tag.id} className="border border-gray-200 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <span className="h-4 w-4 rounded-full" style={{ backgroundColor: tag.color }} />
+                      {editingTagId === tag.id ? (
+                        <input
+                          className="input"
+                          value={editTagName}
+                          onChange={(e) => setEditTagName(e.target.value)}
+                        />
+                      ) : (
+                        <span className="font-medium">{tag.name}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {editingTagId === tag.id ? (
+                        <>
+                          <input
+                            type="color"
+                            value={editTagColor}
+                            onChange={(e) => setEditTagColor(e.target.value)}
+                            className="h-9 w-12 rounded border border-gray-200"
+                          />
+                          <button className="btn btn-primary text-sm" onClick={() => handleSaveTag(tag.id)}>
+                            Save
+                          </button>
+                          <button className="btn btn-secondary text-sm" onClick={cancelEditTag}>
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button className="btn btn-secondary text-sm" onClick={() => startEditTag(tag.id)}>
+                            Edit
+                          </button>
+                          <button className="btn btn-danger text-sm" onClick={() => handleDeleteTag(tag.id)}>
+                            Delete
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={() => setShowTagModal(false)}
               className="btn btn-secondary w-full mt-6"
             >
               Close

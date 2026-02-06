@@ -139,6 +139,7 @@ export const todoDB = {
       is_recurring: true,
       recurrence_pattern: todo.recurrence_pattern,
       recurrence_end_date: todo.recurrence_end_date,
+      reminder_minutes: todo.reminders?.[0]?.minutes_before ?? null,
       subtasks: todo.subtasks?.map((s: any) => s.title) || [],
       tag_ids: todo.tags?.map((t: any) => t.id) || [],
     })

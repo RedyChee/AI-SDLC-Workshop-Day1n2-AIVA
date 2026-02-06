@@ -30,7 +30,7 @@ export async function PATCH(
     const body = await request.json()
     const validated = CreateTemplateSchema.partial().parse(body)
 
-    const updated = templateDB.update(id, {
+    const updated = await templateDB.update(id, {
       ...validated,
       subtasks_json: validated.subtasks?.length ? JSON.stringify(validated.subtasks) : undefined,
     })

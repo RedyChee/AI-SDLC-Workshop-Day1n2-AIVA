@@ -36,7 +36,7 @@ export function useNotifications() {
       }
     }
 
-    const interval = window.setInterval(poll, 60_000)
+    const interval = window.setInterval(poll, 30_000)
     poll()
 
     return () => window.clearInterval(interval)

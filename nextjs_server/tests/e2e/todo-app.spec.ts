@@ -43,9 +43,11 @@ test.describe('Todo app core flows', () => {
 
     await expect(page.getByTestId('todo-item').first()).toContainText('0/1 subtasks')
 
+    await page.getByTestId('manage-tags').click()
     await page.getByTestId('tag-name-input').fill('work')
     await page.getByTestId('tag-color-input').fill('#2563eb')
     await page.getByTestId('tag-create').click()
+    await page.getByTestId('tags-modal-close').click()
 
     await page.getByTestId('todo-item').first().getByTestId('todo-tag-picker').selectOption({ label: 'work' })
 
@@ -56,6 +58,7 @@ test.describe('Todo app core flows', () => {
     await page.goto('/')
 
     await page.getByTestId('nav-templates').click()
+    await page.getByTestId('templates-modal-close').click()
     await page.getByTestId('template-name').fill('Daily standup')
     await page.getByTestId('template-title').fill('Standup')
     await page.getByTestId('template-offset').fill('0')
@@ -187,7 +190,7 @@ test.describe('Todo app core flows', () => {
     const tomorrow = new Date(today)
     tomorrow.setDate(tomorrow.getDate() + 1)
 
-    await page.getByText('Show advanced options').click()
+    await page.getByTestId('todo-advanced-toggle').click()
 
     await page.getByTestId('todo-title').fill('Daily standup')
     await page.getByTestId('todo-priority').selectOption('medium')
@@ -243,9 +246,11 @@ test.describe('Todo app core flows', () => {
   test('user can combine multiple filters', async ({ page }) => {
     await page.goto('/')
 
+    await page.getByTestId('manage-tags').click()
     await page.getByTestId('tag-name-input').fill('urgent')
     await page.getByTestId('tag-color-input').fill('#ef4444')
     await page.getByTestId('tag-create').click()
+    await page.getByTestId('tags-modal-close').click()
 
     await page.getByTestId('todo-title').fill('Important meeting')
     await page.getByTestId('todo-priority').selectOption('high')
@@ -292,7 +297,7 @@ test.describe('Todo app core flows', () => {
     const nextWeek = new Date(today)
     nextWeek.setDate(nextWeek.getDate() + 7)
 
-    await page.getByText('Show advanced options').click()
+    await page.getByTestId('todo-advanced-toggle').click()
 
     await page.getByTestId('todo-title').fill('Weekly team meeting')
     await page.getByTestId('todo-due-date').fill(toDateString(nextWeek))
@@ -339,6 +344,7 @@ test.describe('Todo app core flows', () => {
     await page.waitForTimeout(200)
 
     await page.getByTestId('nav-templates').click()
+    await page.getByTestId('templates-modal-close').click()
     
     await page.getByTestId('template-name').fill('Standard Kickoff')
     await page.getByTestId('template-title').fill('Project kickoff')
@@ -388,7 +394,7 @@ test.describe('Todo app core flows', () => {
     
     expect(response.status()).toBe(400)
     const body = await response.json()
-    expect(body.error).toContain('future')
+    expect(body.error).toContain('past')
   })
 
   test('edit priority', async ({ page }) => {
@@ -402,12 +408,12 @@ test.describe('Todo app core flows', () => {
     
     const todoItem = page.getByTestId('todo-item').filter({ hasText: 'Task to edit priority' })
     await expect(todoItem).toBeVisible()
-    await expect(todoItem.locator('.bg-blue-100')).toContainText('low')
+    await expect(todoItem.locator('.bg-blue-100')).toContainText('Low')
     
     await todoItem.getByTestId('todo-priority-select').selectOption('high')
     await page.waitForTimeout(500)
     
-    await expect(todoItem.locator('.bg-red-100')).toContainText('high')
+    await expect(todoItem.locator('.bg-red-100')).toContainText('High')
   })
 
   test('verify priority sorting', async ({ page }) => {
@@ -451,6 +457,7 @@ test.describe('Todo app core flows', () => {
     tomorrow.setDate(tomorrow.getDate() + 1)
     const dueDate = toDateString(tomorrow)
     
+    await page.getByTestId('todo-advanced-toggle').click()
     await page.getByTestId('todo-title').fill('Recurring work task')
     await page.getByTestId('todo-priority').selectOption('high')
     await page.getByTestId('todo-due-date').fill(dueDate)
@@ -469,10 +476,10 @@ test.describe('Todo app core flows', () => {
     await page.waitForTimeout(1000)
     
     const newInstance = page.getByTestId('todo-item').filter({ hasText: 'Recurring work task' }).last()
-    await expect(newInstance.locator('.bg-red-100')).toContainText('high')
-    await expect(newInstance.locator('.bg-blue-100')).toContainText('daily')
+    await expect(newInstance.locator('.bg-red-100')).toContainText('High')
+    await expect(newInstance.locator('.bg-blue-100')).toContainText('Repeats daily')
     await expect(newInstance.locator('.bg-indigo-100')).toContainText('15m')
-    await expect(newInstance.locator('[style*="ff0000"]')).toContainText('Work')
+    await expect(newInstance.getByTestId('todo-tag-badge').filter({ hasText: 'Work' })).toBeVisible()
   })
 
   test('edit tag name and color', async ({ page, request }) => {
@@ -484,7 +491,7 @@ test.describe('Todo app core flows', () => {
     const createData = await createResponse.json()
     const tagId = createData.data.id
     
-    const updateResponse = await request.put(`/api/tags/${tagId}`, {
+    const updateResponse = await request.patch(`/api/tags/${tagId}`, {
       data: { name: 'NewName', color: '#0000ff' },
     })
     expect(updateResponse.ok()).toBeTruthy()
@@ -527,19 +534,19 @@ test.describe('Todo app core flows', () => {
     await page.getByTestId('todo-add').click()
     await page.waitForTimeout(500)
     
-    await page.getByTestId('todo-title').fill('Untagged task')
+    await page.getByTestId('todo-title').fill('Other task')
     await page.getByTestId('todo-add').click()
     await page.waitForTimeout(500)
     
     const taggedTodo = page.getByTestId('todo-item').filter({ hasText: 'Tagged task' })
-    await taggedTodo.getByTestId('todo-tag-picker').selectOption(tagId)
+    await taggedTodo.locator('[data-testid="todo-tag-picker"]').first().selectOption(tagId)
     await page.waitForTimeout(500)
     
-    await taggedTodo.locator('[style*="00ffff"]').click()
+    await taggedTodo.getByTestId('todo-tag-badge').filter({ hasText: 'FilterTest' }).click()
     await page.waitForTimeout(500)
     
     await expect(page.getByTestId('todo-item').filter({ hasText: 'Tagged task' })).toBeVisible()
-    await expect(page.getByTestId('todo-item').filter({ hasText: 'Untagged task' })).not.toBeVisible()
+    await expect(page.getByTestId('todo-item').filter({ hasText: 'Other task' })).not.toBeVisible()
   })
 
   test('save todo as template', async ({ page, request }) => {
@@ -551,9 +558,7 @@ test.describe('Todo app core flows', () => {
     await page.waitForTimeout(500)
     
     const todoItem = page.getByTestId('todo-item').filter({ hasText: 'Template task' })
-    await todoItem.getByTestId('subtask-toggle').click()
-    await page.waitForTimeout(300)
-    
+    await todoItem.getByTestId('subtask-add-button').click()
     await todoItem.getByTestId('subtask-title-input').fill('Subtask 1')
     await todoItem.getByTestId('subtask-submit').click()
     await page.waitForTimeout(500)
@@ -565,11 +570,11 @@ test.describe('Todo app core flows', () => {
     const templateResponse = await request.post('/api/templates', {
       data: {
         name: 'My Template',
+        title: 'Template task',
         description: 'Test template',
         category: 'work',
         priority: 'high',
-        is_recurring: false,
-        subtasks_json: JSON.stringify([{ title: 'Subtask 1', position: 0 }]),
+        subtasks: ['Subtask 1'],
         due_date_offset_days: 1,
       },
     })
@@ -583,18 +588,18 @@ test.describe('Todo app core flows', () => {
     const createResponse = await request.post('/api/templates', {
       data: {
         name: 'Original Template',
+        title: 'Original Title',
         description: 'Original description',
         category: 'personal',
         priority: 'medium',
-        is_recurring: false,
-        subtasks_json: '[]',
+        subtasks: [],
         due_date_offset_days: 1,
       },
     })
     const createData = await createResponse.json()
     const templateId = createData.data.id
     
-    const updateResponse = await request.put(`/api/templates/${templateId}`, {
+    const updateResponse = await request.patch(`/api/templates/${templateId}`, {
       data: {
         name: 'Updated Template',
         description: 'Updated description',
@@ -612,11 +617,11 @@ test.describe('Todo app core flows', () => {
     const createResponse = await request.post('/api/templates', {
       data: {
         name: 'Template to Delete',
+        title: 'Delete Title',
         description: 'Will be deleted',
         category: 'other',
         priority: 'low',
-        is_recurring: false,
-        subtasks_json: '[]',
+        subtasks: [],
         due_date_offset_days: 0,
       },
     })
@@ -655,7 +660,8 @@ test.describe('Todo app core flows', () => {
     
     await page.waitForTimeout(1000)
     
-    await expect(page.getByText(/error|invalid|failed/i)).toBeVisible()
+    await expect(page.getByTestId('import-status')).toBeVisible()
+    await expect(page.getByTestId('import-status')).toContainText(/error|invalid|failed/i)
   })
 
 })

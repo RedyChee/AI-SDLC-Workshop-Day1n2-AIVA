@@ -9,6 +9,7 @@ interface TodoListProps {
   onTodoDeleted: () => void
   onTodoToggled: () => void
   onTodoUpdated: () => void
+  onTagClick?: (tagId: string) => void
 }
 
 export default function TodoList({
@@ -17,6 +18,7 @@ export default function TodoList({
   onTodoDeleted,
   onTodoToggled,
   onTodoUpdated,
+  onTagClick,
 }: TodoListProps) {
   if (todos.length === 0) {
     return (
@@ -36,6 +38,7 @@ export default function TodoList({
           onDeleted={onTodoDeleted}
           onToggled={onTodoToggled}
           onUpdated={onTodoUpdated}
+          onTagClick={onTagClick}
         />
       ))}
     </div>
