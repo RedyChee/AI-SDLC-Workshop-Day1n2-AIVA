@@ -1,5 +1,11 @@
 import Database from 'better-sqlite3';
 import path from 'path';
+import { REMINDER_OPTIONS, validateReminderMinutes, getReminderAbbreviation } from './types';
+import type { ReminderMinutes } from './types';
+
+// Re-export for convenience
+export { REMINDER_OPTIONS, validateReminderMinutes, getReminderAbbreviation } from './types';
+export type { ReminderMinutes } from './types';
 
 // Initialize database
 const dbPath = path.join(process.cwd(), 'todos.db');
@@ -99,6 +105,13 @@ export interface UpdateTodoInput {
   recurrence_pattern?: RecurrencePattern | null;
   reminder_minutes?: number | null;
   last_notification_sent?: string | null;
+}
+
+export interface PendingNotification {
+  id: number;
+  title: string;
+  due_date: string;
+  reminder_minutes: number;
 }
 
 // Initialize database schema
@@ -403,6 +416,32 @@ export const todoDB = {
       medium: results.find(r => r.priority === 'medium')?.count || 0,
       low: results.find(r => r.priority === 'low')?.count || 0,
     };
+  },
+
+  // Get pending notifications for user
+  getPendingNotifications: (userId: number): PendingNotification[] => {
+    const stmt = db.prepare(`
+      SELECT id, title, due_date, reminder_minutes
+      FROM todos
+      WHERE user_id = ?
+        AND completed = 0
+        AND due_date IS NOT NULL
+        AND reminder_minutes IS NOT NULL
+        AND last_notification_sent IS NULL
+        AND datetime(due_date, '-' || reminder_minutes || ' minutes') <= datetime('now')
+      ORDER BY due_date ASC
+    `);
+    return stmt.all(userId) as PendingNotification[];
+  },
+
+  // Mark notification as sent
+  markNotificationSent: (todoId: number, userId: number): void => {
+    const stmt = db.prepare(`
+      UPDATE todos
+      SET last_notification_sent = datetime('now'), updated_at = datetime('now')
+      WHERE id = ? AND user_id = ?
+    `);
+    stmt.run(todoId, userId);
   },
 };
 

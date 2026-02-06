@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Priority, Todo, UpdateTodoInput, RecurrencePattern } from '@/lib/db';
+import { REMINDER_OPTIONS, ReminderMinutes, getReminderAbbreviation } from '@/lib/types';
 import { 
   formatSingaporeDate, 
   getMinimumDueDate, 
@@ -10,6 +11,7 @@ import {
   isOverdue,
   formatForDateTimeLocal
 } from '@/lib/timezone';
+import { useNotifications } from '@/lib/hooks/useNotifications';
 
 export default function TodoPage() {
   // State management
@@ -23,6 +25,7 @@ export default function TodoPage() {
   const [priority, setPriority] = useState<Priority>('medium');
   const [dueDate, setDueDate] = useState('');
   const [recurrencePattern, setRecurrencePattern] = useState<RecurrencePattern | ''>('');
+  const [reminderMinutes, setReminderMinutes] = useState<ReminderMinutes>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Edit modal state
@@ -31,14 +34,33 @@ export default function TodoPage() {
   const [editPriority, setEditPriority] = useState<Priority>('medium');
   const [editDueDate, setEditDueDate] = useState('');
   const [editRecurrencePattern, setEditRecurrencePattern] = useState<RecurrencePattern | ''>('');
+  const [editReminderMinutes, setEditReminderMinutes] = useState<ReminderMinutes>(null);
   
   // Filter state
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'all'>('all');
+  
+  // Notifications hook
+  const { 
+    permission, 
+    enabled, 
+    isPolling,
+    requestPermission, 
+    startPolling, 
+    stopPolling 
+  } = useNotifications();
 
   // Fetch todos on mount
   useEffect(() => {
     fetchTodos();
   }, []);
+  
+  // Start notification polling when logged in
+  useEffect(() => {
+    if (isLoggedIn && enabled) {
+      startPolling();
+      return () => stopPolling();
+    }
+  }, [isLoggedIn, enabled, startPolling, stopPolling]);
 
   const fetchTodos = async () => {
     try {
@@ -86,6 +108,13 @@ export default function TodoPage() {
       alert('Login failed');
     }
   };
+  
+  const handleEnableNotifications = async () => {
+    const granted = await requestPermission();
+    if (granted) {
+      startPolling();
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,6 +130,12 @@ export default function TodoPage() {
       alert('Recurring todos require a due date');
       return;
     }
+    
+    // Validate reminder requires due date
+    if (reminderMinutes && !dueDate) {
+      alert('Reminders require a due date');
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -113,6 +148,7 @@ export default function TodoPage() {
           priority,
           due_date: dueDate || null,
           recurrence_pattern: recurrencePattern || null,
+          reminder_minutes: reminderMinutes,
         }),
       });
 
@@ -132,6 +168,7 @@ export default function TodoPage() {
       setPriority('medium');
       setDueDate('');
       setRecurrencePattern('');
+      setReminderMinutes(null);
     } catch (error) {
       console.error('Failed to create todo:', error);
       alert('Failed to create todo');
@@ -201,6 +238,7 @@ export default function TodoPage() {
     setEditPriority(todo.priority);
     setEditDueDate(todo.due_date ? formatForDateTimeLocal(todo.due_date) : '');
     setEditRecurrencePattern(todo.recurrence_pattern || '');
+    setEditReminderMinutes((todo.reminder_minutes ?? null) as ReminderMinutes);
   };
 
   const closeEditModal = () => {
@@ -209,6 +247,7 @@ export default function TodoPage() {
     setEditPriority('medium');
     setEditDueDate('');
     setEditRecurrencePattern('');
+    setEditReminderMinutes(null);
   };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
@@ -227,6 +266,12 @@ export default function TodoPage() {
       alert('Recurring todos require a due date');
       return;
     }
+    
+    // Validate reminder requires due date
+    if (editReminderMinutes && !editDueDate) {
+      alert('Reminders require a due date');
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -239,6 +284,7 @@ export default function TodoPage() {
           priority: editPriority,
           due_date: editDueDate || null,
           recurrence_pattern: editRecurrencePattern || null,
+          reminder_minutes: editReminderMinutes,
         }),
       });
 
@@ -332,6 +378,12 @@ export default function TodoPage() {
               Repeats {todo.recurrence_pattern}
             </span>
           )}
+          
+          {todo.reminder_minutes && (
+            <span className="text-xs px-2 py-1 bg-orange-100 text-orange-800 rounded border border-orange-300">
+              🔔 {getReminderAbbreviation(todo.reminder_minutes as ReminderMinutes)}
+            </span>
+          )}
         </div>
       </div>
 
@@ -380,9 +432,23 @@ export default function TodoPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-4xl mx-auto">
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Todo App</h1>
-          <p className="text-gray-600 mt-1">Manage your tasks efficiently</p>
+        <header className="mb-8 flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Todo App</h1>
+            <p className="text-gray-600 mt-1">Manage your tasks efficiently</p>
+          </div>
+          
+          {/* Notification Permission Button */}
+          <button
+            onClick={handleEnableNotifications}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              enabled
+                ? 'bg-green-100 text-green-800 border border-green-300 cursor-default'
+                : 'bg-orange-100 text-orange-800 border border-orange-300 hover:bg-orange-200'
+            }`}
+          >
+            🔔 {enabled ? 'Notifications On' : 'Enable Notifications'}
+          </button>
         </header>
 
         {error && (
@@ -435,23 +501,47 @@ export default function TodoPage() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Recurrence Pattern (Optional)</label>
-              <select
-                value={recurrencePattern}
-                onChange={(e) => setRecurrencePattern(e.target.value as RecurrencePattern | '')}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                disabled={isSubmitting}
-              >
-                <option value="">No Recurrence</option>
-                <option value="daily">🔄 Daily</option>
-                <option value="weekly">🔄 Weekly</option>
-                <option value="monthly">🔄 Monthly</option>
-                <option value="yearly">🔄 Yearly</option>
-              </select>
-              {recurrencePattern && !dueDate && (
-                <p className="mt-1 text-sm text-amber-600">⚠️ Recurring todos require a due date</p>
-              )}
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Recurrence Pattern (Optional)</label>
+                <select
+                  value={recurrencePattern}
+                  onChange={(e) => setRecurrencePattern(e.target.value as RecurrencePattern | '')}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  disabled={isSubmitting}
+                >
+                  <option value="">No Recurrence</option>
+                  <option value="daily">🔄 Daily</option>
+                  <option value="weekly">🔄 Weekly</option>
+                  <option value="monthly">🔄 Monthly</option>
+                  <option value="yearly">🔄 Yearly</option>
+                </select>
+                {recurrencePattern && !dueDate && (
+                  <p className="mt-1 text-sm text-amber-600">⚠️ Recurring todos require a due date</p>
+                )}
+              </div>
+              
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reminder (Optional)</label>
+                <select
+                  value={reminderMinutes === null ? '' : reminderMinutes}
+                  onChange={(e) => setReminderMinutes(e.target.value === '' ? null : parseInt(e.target.value) as ReminderMinutes)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  disabled={isSubmitting || !dueDate}
+                >
+                  {REMINDER_OPTIONS.map(option => (
+                    <option key={option.value ?? 'none'} value={option.value ?? ''}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                {reminderMinutes && !dueDate && (
+                  <p className="mt-1 text-sm text-amber-600">⚠️ Reminders require a due date</p>
+                )}
+                {!dueDate && (
+                  <p className="mt-1 text-sm text-gray-500">Set a due date to enable reminders</p>
+                )}
+              </div>
             </div>
 
             <button
@@ -613,6 +703,28 @@ export default function TodoPage() {
                   </select>
                   {editRecurrencePattern && !editDueDate && (
                     <p className="mt-1 text-sm text-amber-600">⚠️ Recurring todos require a due date</p>
+                  )}
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Reminder</label>
+                  <select
+                    value={editReminderMinutes === null ? '' : editReminderMinutes}
+                    onChange={(e) => setEditReminderMinutes(e.target.value === '' ? null : parseInt(e.target.value) as ReminderMinutes)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    disabled={isSubmitting || !editDueDate}
+                  >
+                    {REMINDER_OPTIONS.map(option => (
+                      <option key={option.value ?? 'none'} value={option.value ?? ''}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  {editReminderMinutes && !editDueDate && (
+                    <p className="mt-1 text-sm text-amber-600">⚠️ Reminders require a due date</p>
+                  )}
+                  {!editDueDate && (
+                    <p className="mt-1 text-sm text-gray-500">Set a due date to enable reminders</p>
                   )}
                 </div>
 

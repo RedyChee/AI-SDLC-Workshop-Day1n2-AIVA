@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { todoDB } from '@/lib/db';
+import { validateReminderMinutes } from '@/lib/types';
 import { getSingaporeNow } from '@/lib/timezone';
 
 /**
@@ -71,8 +72,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate reminder requires due date
-    if (body.reminder_minutes && !body.due_date) {
+    // Validate and sanitize reminder
+    const reminder_minutes = validateReminderMinutes(body.reminder_minutes);
+    if (reminder_minutes && !body.due_date) {
       return NextResponse.json(
         { error: 'Reminders require a due date' },
         { status: 400 }
@@ -94,7 +96,7 @@ export async function POST(request: NextRequest) {
       priority: body.priority || 'medium',
       due_date: body.due_date || null,
       recurrence_pattern: body.recurrence_pattern || null,
-      reminder_minutes: body.reminder_minutes || null,
+      reminder_minutes,
     });
 
     return NextResponse.json(todo, { status: 201 });

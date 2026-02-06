@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { todoDB, RecurrencePattern } from '@/lib/db';
+import { validateReminderMinutes } from '@/lib/types';
 import { getSingaporeNow, addDays, addMonths, addYears } from '@/lib/timezone';
 
 /**
@@ -92,8 +93,12 @@ export async function PUT(
       );
     }
 
-    // Validate reminder requires due date
-    if (body.reminder_minutes && !body.due_date && !todo.due_date) {
+    // Validate and sanitize reminder
+    const reminder_minutes = body.reminder_minutes !== undefined 
+      ? validateReminderMinutes(body.reminder_minutes)
+      : undefined;
+    
+    if (reminder_minutes && !body.due_date && !todo.due_date) {
       return NextResponse.json(
         { error: 'Reminders require a due date' },
         { status: 400 }
@@ -106,6 +111,26 @@ export async function PUT(
         { error: 'Priority must be low, medium, or high' },
         { status: 400 }
       );
+    }
+
+    // Build update data object
+    const updateData: any = {};
+    if (body.title !== undefined) updateData.title = body.title;
+    if (body.priority !== undefined) updateData.priority = body.priority;
+    if (body.due_date !== undefined) updateData.due_date = body.due_date;
+    if (body.completed !== undefined) updateData.completed = body.completed;
+    if (body.recurrence_pattern !== undefined) updateData.recurrence_pattern = body.recurrence_pattern;
+    
+    // Handle reminder updates - reset last_notification_sent when reminder changes
+    if (reminder_minutes !== undefined) {
+      updateData.reminder_minutes = reminder_minutes;
+      updateData.last_notification_sent = null; // Reset to allow new notification
+    }
+    
+    // If removing due_date, also remove reminder
+    if (body.due_date === null) {
+      updateData.reminder_minutes = null;
+      updateData.last_notification_sent = null;
     }
 
     // Handle recurring todo completion
@@ -131,7 +156,7 @@ export async function PUT(
           nextDueDate = currentDueDate;
       }
 
-      // Create next instance with same metadata
+      // Create next instance with same metadata (including reminder)
       todoDB.create({
         user_id: session.userId,
         title: todo.title,
@@ -143,15 +168,7 @@ export async function PUT(
     }
 
     // Update the current todo
-    const updated = todoDB.update(parseInt(id), {
-      title: body.title,
-      priority: body.priority,
-      due_date: body.due_date,
-      completed: body.completed,
-      recurrence_pattern: body.recurrence_pattern,
-      reminder_minutes: body.reminder_minutes,
-      last_notification_sent: body.last_notification_sent,
-    });
+    const updated = todoDB.update(parseInt(id), updateData);
 
     return NextResponse.json(updated, { status: 200 });
   } catch (error) {
