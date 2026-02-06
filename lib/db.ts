@@ -84,13 +84,44 @@ export interface Template {
   id: number;
   user_id: number;
   name: string;
+  description: string | null;
+  category: string | null;
+  title_template: string;
   priority: Priority;
-  due_date_offset_days: number | null;
+  recurrence_enabled: 0 | 1;
   recurrence_pattern: RecurrencePattern | null;
   reminder_minutes: number | null;
+  due_offset_days: number | null;
   subtasks_json: string | null;
   created_at: string;
+  updated_at: string;
 }
+
+export interface SubtaskInput {
+  title: string;
+  position: number;
+}
+
+export interface TemplateWithSubtasks extends Template {
+  subtasks: SubtaskInput[];
+}
+
+export const SUGGESTED_CATEGORIES = [
+  'Work',
+  'Personal',
+  'Finance',
+  'Health',
+  'Education',
+] as const;
+
+export const DUE_OFFSET_PRESETS = [
+  { label: '1 day', value: 1 },
+  { label: '3 days', value: 3 },
+  { label: '1 week', value: 7 },
+  { label: '2 weeks', value: 14 },
+  { label: '1 month', value: 30 },
+  { label: 'Custom', value: null },
+] as const;
 
 export interface Holiday {
   id: number;
@@ -196,14 +227,20 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS templates (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
+    name TEXT NOT NULL CHECK(length(trim(name)) > 0 AND length(name) <= 100),
+    description TEXT DEFAULT NULL CHECK(description IS NULL OR length(description) <= 500),
+    category TEXT DEFAULT NULL CHECK(category IS NULL OR length(category) <= 50),
+    title_template TEXT NOT NULL CHECK(length(trim(title_template)) > 0),
     priority TEXT DEFAULT 'medium' CHECK(priority IN ('low', 'medium', 'high')),
-    due_date_offset_days INTEGER,
-    recurrence_pattern TEXT CHECK(recurrence_pattern IN ('daily', 'weekly', 'monthly', 'yearly')),
-    reminder_minutes INTEGER,
-    subtasks_json TEXT,
+    recurrence_enabled INTEGER NOT NULL DEFAULT 0 CHECK(recurrence_enabled IN (0, 1)),
+    recurrence_pattern TEXT DEFAULT NULL CHECK(recurrence_pattern IS NULL OR recurrence_pattern IN ('daily', 'weekly', 'monthly', 'yearly')),
+    reminder_minutes INTEGER DEFAULT NULL CHECK(reminder_minutes IS NULL OR reminder_minutes IN (15, 30, 60, 120, 1440, 2880, 10080)),
+    due_offset_days INTEGER DEFAULT NULL CHECK(due_offset_days IS NULL OR (due_offset_days >= 1 AND due_offset_days <= 365)),
+    subtasks_json TEXT DEFAULT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(user_id, name COLLATE NOCASE)
   );
 
   -- Holidays table
@@ -224,6 +261,182 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_authenticators_user_id ON authenticators(user_id);
   CREATE INDEX IF NOT EXISTS idx_authenticators_credential_id ON authenticators(credential_id);
 `);
+
+// Database migrations for templates table (handle existing databases)
+// These migrations run at module load time to update existing databases
+try {
+  db.exec(`ALTER TABLE templates ADD COLUMN description TEXT DEFAULT NULL CHECK(description IS NULL OR length(description) <= 500)`);
+} catch (e: any) {
+  // Column already exists or other error - ignore
+}
+try {
+  db.exec(`ALTER TABLE templates ADD COLUMN category TEXT DEFAULT NULL CHECK(category IS NULL OR length(category) <= 50)`);
+} catch (e: any) {
+  // Column already exists or other error - ignore
+}
+try {
+  db.exec(`ALTER TABLE templates ADD COLUMN title_template TEXT NOT NULL DEFAULT ''`);
+} catch (e: any) {
+  // Column already exists or other error - ignore
+}
+try {
+  db.exec(`ALTER TABLE templates ADD COLUMN recurrence_enabled INTEGER NOT NULL DEFAULT 0 CHECK(recurrence_enabled IN (0, 1))`);
+} catch (e: any) {
+  // Column already exists or other error - ignore
+}
+try {
+  db.exec(`ALTER TABLE templates ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'))`);
+} catch (e: any) {
+  // Column already exists or other error - ignore
+}
+try {
+  // Check if migration from old schema to new schema is needed
+  const columns = db.prepare("PRAGMA table_info(templates)").all() as any[];
+  const columnNames = columns.map((col: any) => col.name);
+  
+  // If old column name exists, need to migrate
+  const hasOldColumn = columnNames.includes('due_date_offset_days');
+  const hasNewColumn = columnNames.includes('due_offset_days');
+  const needsMigration = hasOldColumn && !hasNewColumn;
+  
+  if (needsMigration) {
+    // Build SELECT list based on existing columns
+    const selectFields: string[] = [];
+    selectFields.push('id', 'user_id', 'name');
+    selectFields.push(columnNames.includes('description') ? 'description' : 'NULL as description');
+    selectFields.push(columnNames.includes('category') ? 'category' : 'NULL as category');
+    selectFields.push(columnNames.includes('title_template') ? 'title_template' : 'name as title_template');
+    selectFields.push(columnNames.includes('priority') ? 'priority' : "'medium' as priority");
+    selectFields.push(columnNames.includes('recurrence_enabled') ? 'recurrence_enabled' : '0 as recurrence_enabled');
+    selectFields.push(columnNames.includes('recurrence_pattern') ? 'recurrence_pattern' : 'NULL as recurrence_pattern');
+    selectFields.push(columnNames.includes('reminder_minutes') ? 'reminder_minutes' : 'NULL as reminder_minutes');
+    selectFields.push('due_date_offset_days as due_offset_days');
+    selectFields.push(columnNames.includes('subtasks_json') ? 'subtasks_json' : 'NULL as subtasks_json');
+    selectFields.push(columnNames.includes('created_at') ? 'created_at' : "datetime('now') as created_at");
+    selectFields.push(columnNames.includes('updated_at') ? 'updated_at' : "datetime('now') as updated_at");
+    
+    db.exec(`
+      CREATE TABLE templates_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        name TEXT NOT NULL CHECK(length(trim(name)) > 0 AND length(name) <= 100),
+        description TEXT DEFAULT NULL CHECK(description IS NULL OR length(description) <= 500),
+        category TEXT DEFAULT NULL CHECK(category IS NULL OR length(category) <= 50),
+        title_template TEXT NOT NULL CHECK(length(trim(title_template)) > 0),
+        priority TEXT DEFAULT 'medium' CHECK(priority IN ('low', 'medium', 'high')),
+        recurrence_enabled INTEGER NOT NULL DEFAULT 0 CHECK(recurrence_enabled IN (0, 1)),
+        recurrence_pattern TEXT DEFAULT NULL CHECK(recurrence_pattern IS NULL OR recurrence_pattern IN ('daily', 'weekly', 'monthly', 'yearly')),
+        reminder_minutes INTEGER DEFAULT NULL CHECK(reminder_minutes IS NULL OR reminder_minutes IN (15, 30, 60, 120, 1440, 2880, 10080)),
+        due_offset_days INTEGER DEFAULT NULL CHECK(due_offset_days IS NULL OR (due_offset_days >= 1 AND due_offset_days <= 365)),
+        subtasks_json TEXT DEFAULT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE(user_id, name COLLATE NOCASE)
+      );
+      INSERT INTO templates_new (id, user_id, name, description, category, title_template, priority, recurrence_enabled, recurrence_pattern, reminder_minutes, due_offset_days, subtasks_json, created_at, updated_at)
+      SELECT ${selectFields.join(', ')} FROM templates;
+      DROP TABLE templates;
+      ALTER TABLE templates_new RENAME TO templates;
+      CREATE INDEX IF NOT EXISTS idx_templates_user_id ON templates(user_id);
+      CREATE INDEX IF NOT EXISTS idx_templates_category ON templates(user_id, category);
+    `);
+  }
+} catch (e: any) {
+  // Migration failed or not needed - ignore
+  console.error('Template migration error (non-fatal):', e.message);
+}
+
+// Create template indexes (safe to run even if they exist)
+// These need to be created AFTER migrations to ensure columns exist
+try {
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_templates_user_id ON templates(user_id);
+    CREATE INDEX IF NOT EXISTS idx_templates_category ON templates(user_id, category);
+  `);
+} catch (e: any) {
+  // Index creation failed - ignore (columns might not exist yet)
+  console.error('Template index creation error (non-fatal):', e.message);
+}
+
+// Template validation and helper functions
+export function validateTemplateName(name: any): string | null {
+  if (typeof name !== 'string') return null;
+  const trimmed = name.trim();
+  if (trimmed.length === 0) return null;
+  if (trimmed.length > 100) return null;
+  return trimmed;
+}
+
+export function validateTemplateDescription(description: any): string | null {
+  if (description === null || description === undefined) return null;
+  if (typeof description !== 'string') return null;
+  const trimmed = description.trim();
+  if (trimmed.length === 0) return null;
+  if (trimmed.length > 500) return null;
+  return trimmed;
+}
+
+export function validateCategory(category: any): string | null {
+  if (category === null || category === undefined) return null;
+  if (typeof category !== 'string') return null;
+  const trimmed = category.trim();
+  if (trimmed.length === 0) return null;
+  if (trimmed.length > 50) return null;
+  return trimmed;
+}
+
+export function validateDueOffsetDays(days: any): number | null {
+  if (days === null || days === undefined) return null;
+  const num = typeof days === 'string' ? parseInt(days, 10) : days;
+  if (isNaN(num)) return null;
+  if (num < 1 || num > 365) return null;
+  return num;
+}
+
+export function serializeSubtasks(subtasks: SubtaskInput[]): string | null {
+  if (!subtasks || subtasks.length === 0) return null;
+  return JSON.stringify(subtasks);
+}
+
+export function deserializeSubtasks(json: string | null): SubtaskInput[] {
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(json);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item): item is SubtaskInput =>
+        typeof item === 'object' &&
+        typeof item.title === 'string' &&
+        typeof item.position === 'number'
+    );
+  } catch {
+    return [];
+  }
+}
+
+export function isTemplateNameUnique(
+  userId: number,
+  name: string,
+  excludeTemplateId?: number
+): boolean {
+  const query = excludeTemplateId
+    ? `SELECT COUNT(*) as count FROM templates WHERE user_id = ? AND LOWER(name) = LOWER(?) AND id != ?`
+    : `SELECT COUNT(*) as count FROM templates WHERE user_id = ? AND LOWER(name) = LOWER(?)`;
+  
+  const params = excludeTemplateId ? [userId, name, excludeTemplateId] : [userId, name];
+  const result = db.prepare(query).get(...params) as { count: number };
+  return result.count === 0;
+}
+
+export function calculateDueDateFromOffset(offsetDays: number | null): string | null {
+  if (offsetDays === null) return null;
+  
+  const { getSingaporeNow, toSingaporeISO } = require('./timezone');
+  const now = getSingaporeNow();
+  now.setDate(now.getDate() + offsetDays);
+  return toSingaporeISO(now);
+}
 
 // Database operations - all synchronous (better-sqlite3)
 
@@ -634,24 +847,56 @@ export const templateDB = {
   create: (data: {
     user_id: number;
     name: string;
+    description?: string | null;
+    category?: string | null;
+    title_template: string;
     priority?: Priority;
-    due_date_offset_days?: number | null;
+    recurrence_enabled?: 0 | 1;
     recurrence_pattern?: RecurrencePattern | null;
     reminder_minutes?: number | null;
-    subtasks_json?: string | null;
+    due_offset_days?: number | null;
+    subtasks?: SubtaskInput[];
   }): Template => {
+    const { getSingaporeNow, toSingaporeISO } = require('./timezone');
+    const now = toSingaporeISO(getSingaporeNow());
+    
+    const name = validateTemplateName(data.name);
+    if (!name) {
+      throw new Error('Invalid template name');
+    }
+    
+    // Check uniqueness
+    if (!isTemplateNameUnique(data.user_id, name)) {
+      throw new Error('Template name already exists');
+    }
+    
+    const description = validateTemplateDescription(data.description);
+    const category = validateCategory(data.category);
+    const subtasksJson = data.subtasks ? serializeSubtasks(data.subtasks) : null;
+    const dueOffset = validateDueOffsetDays(data.due_offset_days);
+    
     const stmt = db.prepare(`
-      INSERT INTO templates (user_id, name, priority, due_date_offset_days, recurrence_pattern, reminder_minutes, subtasks_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO templates (
+        user_id, name, description, category, title_template,
+        priority, recurrence_enabled, recurrence_pattern,
+        reminder_minutes, due_offset_days, subtasks_json,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const info = stmt.run(
       data.user_id,
-      data.name,
+      name,
+      description,
+      category,
+      data.title_template,
       data.priority || 'medium',
-      data.due_date_offset_days || null,
-      data.recurrence_pattern || null,
-      data.reminder_minutes || null,
-      data.subtasks_json || null
+      data.recurrence_enabled ?? 0,
+      data.recurrence_pattern ?? null,
+      data.reminder_minutes ?? null,
+      dueOffset,
+      subtasksJson,
+      now,
+      now
     );
     return templateDB.getById(info.lastInsertRowid as number)!;
   },
@@ -662,57 +907,128 @@ export const templateDB = {
   },
 
   getAllByUser: (userId: number): Template[] => {
-    const stmt = db.prepare('SELECT * FROM templates WHERE user_id = ? ORDER BY name ASC');
+    const stmt = db.prepare(`
+      SELECT * FROM templates 
+      WHERE user_id = ? 
+      ORDER BY category NULLS LAST, name COLLATE NOCASE ASC
+    `);
     return stmt.all(userId) as Template[];
   },
 
-  update: (id: number, data: {
+  getByCategory: (userId: number, category: string): Template[] => {
+    const stmt = db.prepare(`
+      SELECT * FROM templates 
+      WHERE user_id = ? AND category = ?
+      ORDER BY name COLLATE NOCASE ASC
+    `);
+    return stmt.all(userId, category) as Template[];
+  },
+
+  update: (id: number, userId: number, data: {
     name?: string;
-    priority?: Priority;
-    due_date_offset_days?: number | null;
-    recurrence_pattern?: RecurrencePattern | null;
-    reminder_minutes?: number | null;
-    subtasks_json?: string | null;
+    description?: string | null;
+    category?: string | null;
   }): Template => {
-    const fields: string[] = [];
-    const values: any[] = [];
-
+    const { getSingaporeNow, toSingaporeISO } = require('./timezone');
+    const now = toSingaporeISO(getSingaporeNow());
+    
+    const existing = templateDB.getById(id);
+    if (!existing || existing.user_id !== userId) {
+      throw new Error('Template not found');
+    }
+    
+    // Validate and update name if provided
+    let name = existing.name;
     if (data.name !== undefined) {
-      fields.push('name = ?');
-      values.push(data.name);
+      const validated = validateTemplateName(data.name);
+      if (!validated) {
+        throw new Error('Invalid template name');
+      }
+      // Check uniqueness (excluding current template)
+      if (!isTemplateNameUnique(userId, validated, id)) {
+        throw new Error('Template name already exists');
+      }
+      name = validated;
     }
-    if (data.priority !== undefined) {
-      fields.push('priority = ?');
-      values.push(data.priority);
+    
+    // Validate and update description if provided
+    let description = existing.description;
+    if ('description' in data) {
+      description = validateTemplateDescription(data.description);
     }
-    if (data.due_date_offset_days !== undefined) {
-      fields.push('due_date_offset_days = ?');
-      values.push(data.due_date_offset_days);
+    
+    // Validate and update category if provided
+    let category = existing.category;
+    if ('category' in data) {
+      category = validateCategory(data.category);
     }
-    if (data.recurrence_pattern !== undefined) {
-      fields.push('recurrence_pattern = ?');
-      values.push(data.recurrence_pattern);
-    }
-    if (data.reminder_minutes !== undefined) {
-      fields.push('reminder_minutes = ?');
-      values.push(data.reminder_minutes);
-    }
-    if (data.subtasks_json !== undefined) {
-      fields.push('subtasks_json = ?');
-      values.push(data.subtasks_json);
-    }
-
-    values.push(id);
-
-    const stmt = db.prepare(`UPDATE templates SET ${fields.join(', ')} WHERE id = ?`);
-    stmt.run(...values);
-
+    
+    const stmt = db.prepare(`
+      UPDATE templates 
+      SET name = ?, description = ?, category = ?, updated_at = ?
+      WHERE id = ? AND user_id = ?
+    `);
+    stmt.run(name, description, category, now, id, userId);
     return templateDB.getById(id)!;
   },
 
-  delete: (id: number): void => {
-    const stmt = db.prepare('DELETE FROM templates WHERE id = ?');
-    stmt.run(id);
+  delete: (id: number, userId: number): void => {
+    const template = templateDB.getById(id);
+    if (!template || template.user_id !== userId) {
+      throw new Error('Template not found');
+    }
+    
+    const stmt = db.prepare('DELETE FROM templates WHERE id = ? AND user_id = ?');
+    stmt.run(id, userId);
+  },
+
+  use: (id: number, userId: number): Todo => {
+    const template = templateDB.getById(id);
+    if (!template || template.user_id !== userId) {
+      throw new Error('Template not found');
+    }
+    
+    // Calculate due date from offset
+    const dueDate = calculateDueDateFromOffset(template.due_offset_days);
+    
+    // Create todo
+    const todo = todoDB.create({
+      user_id: userId,
+      title: template.title_template,
+      priority: template.priority,
+      due_date: dueDate,
+      recurrence_pattern: template.recurrence_enabled === 1 && template.recurrence_pattern 
+        ? template.recurrence_pattern 
+        : null,
+      reminder_minutes: template.reminder_minutes,
+    });
+    
+    // Create subtasks if template has them
+    const subtasks = deserializeSubtasks(template.subtasks_json);
+    for (const subtaskInput of subtasks) {
+      subtaskDB.create({
+        todo_id: todo.id,
+        title: subtaskInput.title,
+        position: subtaskInput.position,
+      });
+    }
+    
+    return todo;
+  },
+
+  getWithSubtasks: (id: number): TemplateWithSubtasks | null => {
+    const template = templateDB.getById(id);
+    if (!template) return null;
+    const subtasks = deserializeSubtasks(template.subtasks_json);
+    return { ...template, subtasks };
+  },
+
+  getAllWithSubtasks: (userId: number): TemplateWithSubtasks[] => {
+    const templates = templateDB.getAllByUser(userId);
+    return templates.map(template => {
+      const subtasks = deserializeSubtasks(template.subtasks_json);
+      return { ...template, subtasks };
+    });
   },
 };
 

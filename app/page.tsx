@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, memo } from 'react';
-import { Priority, Todo, UpdateTodoInput, RecurrencePattern, Subtask, SubtaskProgress, TodoWithSubtasks, Tag } from '@/lib/db';
+import { Priority, Todo, UpdateTodoInput, RecurrencePattern, Subtask, SubtaskProgress, TodoWithSubtasks, Tag, TemplateWithSubtasks, SubtaskInput, SUGGESTED_CATEGORIES, DUE_OFFSET_PRESETS } from '@/lib/db-types';
 import { REMINDER_OPTIONS, ReminderMinutes, getReminderAbbreviation, calculateProgress } from '@/lib/types';
 import { 
   formatSingaporeDate, 
@@ -253,6 +253,21 @@ export default function TodoPage() {
   const [editTagName, setEditTagName] = useState('');
   const [editTagColor, setEditTagColor] = useState('');
   
+  // Template management state
+  const [templates, setTemplates] = useState<TemplateWithSubtasks[]>([]);
+  const [showTemplateManager, setShowTemplateManager] = useState(false);
+  const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [templateDescription, setTemplateDescription] = useState('');
+  const [templateCategory, setTemplateCategory] = useState('');
+  const [templateDueOffset, setTemplateDueOffset] = useState<number | null>(null);
+  const [customDueOffset, setCustomDueOffset] = useState('');
+  const [editingTemplate, setEditingTemplate] = useState<TemplateWithSubtasks | null>(null);
+  const [showEditTemplateModal, setShowEditTemplateModal] = useState(false);
+  const [editTemplateName, setEditTemplateName] = useState('');
+  const [editTemplateDescription, setEditTemplateDescription] = useState('');
+  const [editTemplateCategory, setEditTemplateCategory] = useState('');
+  
   // Filter preset state
   interface FilterPreset {
     id: string;
@@ -304,6 +319,7 @@ export default function TodoPage() {
   useEffect(() => {
     fetchTodos();
     fetchTags();
+    fetchTemplates();
   }, []);
   
   // Start notification polling when logged in
@@ -357,6 +373,25 @@ export default function TodoPage() {
       setTags(data);
     } catch (err) {
       console.error('Failed to load tags:', err);
+    }
+  };
+
+  const fetchTemplates = async () => {
+    try {
+      const response = await fetch('/api/templates');
+      
+      if (response.status === 401) {
+        return; // Not logged in yet
+      }
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch templates');
+      }
+      
+      const data = await response.json();
+      setTemplates(data.templates);
+    } catch (err) {
+      console.error('Failed to load templates:', err);
     }
   };
 
@@ -497,6 +532,155 @@ export default function TodoPage() {
         ? prev.filter(id => id !== tagId)
         : [...prev, tagId]
     );
+  };
+
+  // Template management functions
+  const handleSaveAsTemplate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const trimmedName = templateName.trim();
+    if (!trimmedName) {
+      alert('Template name is required');
+      return;
+    }
+    
+    if (!title.trim()) {
+      alert('Cannot save template without a todo title');
+      return;
+    }
+
+    // Get current subtasks from form (if subtask list exists in state)
+    const currentSubtasks: SubtaskInput[] = [];
+    // Note: Subtasks in form are managed differently. We'll leave this empty for now
+    // Users can add subtasks to templates by editing them after creation
+
+    try {
+      const response = await fetch('/api/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: trimmedName,
+          description: templateDescription.trim() || null,
+          category: templateCategory.trim() || null,
+          title_template: title.trim(),
+          priority,
+          recurrence_enabled: recurrencePattern ? 1 : 0,
+          recurrence_pattern: recurrencePattern || null,
+          reminder_minutes: reminderMinutes,
+          due_offset_days: templateDueOffset,
+          subtasks: currentSubtasks,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(error.error || 'Failed to create template');
+        return;
+      }
+
+      alert('Template saved successfully!');
+      setTemplateName('');
+      setTemplateDescription('');
+      setTemplateCategory('');
+      setTemplateDueOffset(null);
+      setCustomDueOffset('');
+      setShowSaveTemplateModal(false);
+      
+      await fetchTemplates();
+    } catch (error) {
+      console.error('Failed to save template:', error);
+      alert('Failed to save template');
+    }
+  };
+
+  const handleUseTemplate = async (templateId: number) => {
+    try {
+      const response = await fetch(`/api/templates/${templateId}/use`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(error.error || 'Failed to create todo from template');
+        return;
+      }
+
+      await fetchTodos();
+      alert('Todo created from template!');
+    } catch (error) {
+      console.error('Failed to use template:', error);
+      alert('Failed to create todo from template');
+    }
+  };
+
+  const handleEditTemplate = (template: TemplateWithSubtasks) => {
+    setEditingTemplate(template);
+    setEditTemplateName(template.name);
+    setEditTemplateDescription(template.description || '');
+    setEditTemplateCategory(template.category || '');
+    setShowEditTemplateModal(true);
+  };
+
+  const handleUpdateTemplate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!editingTemplate) return;
+    
+    const trimmedName = editTemplateName.trim();
+    if (!trimmedName) {
+      alert('Template name is required');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/templates/${editingTemplate.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: trimmedName,
+          description: editTemplateDescription.trim() || null,
+          category: editTemplateCategory.trim() || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(error.error || 'Failed to update template');
+        return;
+      }
+
+      setShowEditTemplateModal(false);
+      setEditingTemplate(null);
+      await fetchTemplates();
+      alert('Template updated successfully!');
+    } catch (error) {
+      console.error('Failed to update template:', error);
+      alert('Failed to update template');
+    }
+  };
+
+  const handleDeleteTemplate = async (templateId: number) => {
+    if (!confirm('Are you sure you want to delete this template? This will not affect existing todos.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/templates/${templateId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(error.error || 'Failed to delete template');
+        return;
+      }
+
+      await fetchTemplates();
+      alert('Template deleted successfully!');
+    } catch (error) {
+      console.error('Failed to delete template:', error);
+      alert('Failed to delete template');
+    }
   };
 
   // Filter preset management functions
@@ -1021,17 +1205,27 @@ export default function TodoPage() {
             <p className="text-gray-600 mt-1">Manage your tasks efficiently</p>
           </div>
           
-          {/* Notification Permission Button */}
-          <button
-            onClick={handleEnableNotifications}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              enabled
-                ? 'bg-green-100 text-green-800 border border-green-300 cursor-default'
-                : 'bg-orange-100 text-orange-800 border border-orange-300 hover:bg-orange-200'
-            }`}
-          >
-            🔔 {enabled ? 'Notifications On' : 'Enable Notifications'}
-          </button>
+          <div className="flex gap-3">
+            {/* Templates Button */}
+            <button
+              onClick={() => setShowTemplateManager(true)}
+              className="px-4 py-2 bg-purple-100 text-purple-800 border border-purple-300 rounded-lg font-medium hover:bg-purple-200 transition-colors"
+            >
+              📋 Templates {templates.length > 0 && `(${templates.length})`}
+            </button>
+            
+            {/* Notification Permission Button */}
+            <button
+              onClick={handleEnableNotifications}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                enabled
+                  ? 'bg-green-100 text-green-800 border border-green-300 cursor-default'
+                  : 'bg-orange-100 text-orange-800 border border-orange-300 hover:bg-orange-200'
+              }`}
+            >
+              🔔 {enabled ? 'Notifications On' : 'Enable Notifications'}
+            </button>
+          </div>
         </header>
 
         {error && (
@@ -1055,6 +1249,31 @@ export default function TodoPage() {
                 disabled={isSubmitting}
               />
             </div>
+
+            {/* Template Selector */}
+            {templates.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Use Template</label>
+                <select
+                  onChange={(e) => {
+                    const templateId = parseInt(e.target.value, 10);
+                    if (templateId) {
+                      handleUseTemplate(templateId);
+                      e.target.value = '';
+                    }
+                  }}
+                  defaultValue=""
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Select a template to create todo instantly...</option>
+                  {templates.map(template => (
+                    <option key={template.id} value={template.id}>
+                      {template.name} {template.category && `(${template.category})`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="flex-1">
@@ -1177,13 +1396,27 @@ export default function TodoPage() {
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {isSubmitting ? 'Adding...' : 'Add Todo'}
-            </button>
+            <div className="flex gap-3">
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex-1 px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isSubmitting ? 'Adding...' : 'Add Todo'}
+              </button>
+              
+              {title.trim() && (
+                <button
+                  type="button"
+                  onClick={() => setShowSaveTemplateModal(true)}
+                  disabled={isSubmitting}
+                  className="px-6 py-3 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  title="Save current form as template"
+                >
+                  💾 Save as Template
+                </button>
+              )}
+            </div>
           </div>
         </form>
 
@@ -1769,6 +2002,349 @@ export default function TodoPage() {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Save Template Modal */}
+        {showSaveTemplateModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full">
+              <h2 className="text-xl font-semibold mb-4">Save as Template</h2>
+              
+              <form onSubmit={handleSaveAsTemplate} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Template Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={templateName}
+                    onChange={(e) => setTemplateName(e.target.value)}
+                    placeholder="e.g., Weekly Report"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    required
+                    maxLength={100}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description (Optional)
+                  </label>
+                  <textarea
+                    value={templateDescription}
+                    onChange={(e) => setTemplateDescription(e.target.value)}
+                    placeholder="Brief description of this template"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    maxLength={500}
+                    rows={3}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Category (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={templateCategory}
+                    onChange={(e) => setTemplateCategory(e.target.value)}
+                    placeholder="e.g., Work, Personal"
+                    list="category-suggestions"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    maxLength={50}
+                  />
+                  <datalist id="category-suggestions">
+                    {SUGGESTED_CATEGORIES.map(cat => (
+                      <option key={cat} value={cat} />
+                    ))}
+                  </datalist>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Due in (Optional)
+                  </label>
+                  <select
+                    value={templateDueOffset ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === 'custom') {
+                        setTemplateDueOffset(null);
+                      } else {
+                        setTemplateDueOffset(val === '' ? null : parseInt(val));
+                        setCustomDueOffset('');
+                      }
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="">No due date offset</option>
+                    {DUE_OFFSET_PRESETS.filter(p => p.value !== null).map(preset => (
+                      <option key={preset.value} value={preset.value}>
+                        {preset.label}
+                      </option>
+                    ))}
+                    <option value="custom">Custom...</option>
+                  </select>
+                </div>
+
+                {templateDueOffset === null && customDueOffset === '' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Custom Days (1-365)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="365"
+                      value={customDueOffset}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        if (val >= 1 && val <= 365) {
+                          setTemplateDueOffset(val);
+                        }
+                        setCustomDueOffset(e.target.value);
+                      }}
+                      placeholder="Enter number of days"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                )}
+
+                <p className="text-xs text-gray-500">
+                  This template will save the current todo settings (title: "{title}", priority, recurrence, reminder)
+                </p>
+
+                <div className="flex gap-3">
+                  <button
+                    type="submit"
+                    className="flex-1 px-6 py-2 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700"
+                  >
+                    Save Template
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSaveTemplateModal(false);
+                      setTemplateName('');
+                      setTemplateDescription('');
+                      setTemplateCategory('');
+                      setTemplateDueOffset(null);
+                      setCustomDueOffset('');
+                    }}
+                    className="flex-1 px-6 py-2 bg-gray-200 text-gray-800 font-medium rounded-lg hover:bg-gray-300"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Template Manager Modal */}
+        {showTemplateManager && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <h2 className="text-2xl font-bold mb-4">Template Library</h2>
+              
+              {templates.length === 0 ? (
+                <p className="text-center py-8 text-gray-500">
+                  No templates yet. Save your first template from the todo form!
+                </p>
+              ) : (
+                <div className="space-y-6">
+                  {/* Group templates by category */}
+                  {Object.entries(
+                    templates.reduce((acc, template) => {
+                      const cat = template.category || 'Uncategorized';
+                      if (!acc[cat]) acc[cat] = [];
+                      acc[cat].push(template);
+                      return acc;
+                    }, {} as Record<string, TemplateWithSubtasks[]>)
+                  ).map(([category, categoryTemplates]) => (
+                    <div key={category}>
+                      <h3 className="text-lg font-semibold mb-3 text-gray-800">
+                        {category}
+                      </h3>
+                      
+                      <div className="space-y-3">
+                        {categoryTemplates.map(template => (
+                          <div
+                            key={template.id}
+                            className="border rounded-lg p-4 hover:bg-gray-50"
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="flex-1">
+                                <h4 className="font-bold text-lg mb-1">
+                                  {template.name}
+                                </h4>
+                                
+                                {template.description && (
+                                  <p className="text-sm text-gray-600 mb-2">
+                                    {template.description}
+                                  </p>
+                                )}
+                                
+                                <div className="flex flex-wrap gap-2 mb-2">
+                                  {/* Priority badge */}
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${getPriorityColor(template.priority)}`}>
+                                    🎯 {template.priority.toUpperCase()}
+                                  </span>
+                                  
+                                  {/* Recurrence badge */}
+                                  {template.recurrence_enabled === 1 && template.recurrence_pattern && (
+                                    <span className="px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800 border border-purple-300">
+                                      🔄 {template.recurrence_pattern}
+                                    </span>
+                                  )}
+                                  
+                                  {/* Reminder badge */}
+                                  {template.reminder_minutes && (
+                                    <span className="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800 border border-orange-300">
+                                      🔔 {getReminderAbbreviation(template.reminder_minutes as ReminderMinutes)}
+                                    </span>
+                                  )}
+                                  
+                                  {/* Subtasks badge */}
+                                  {template.subtasks.length > 0 && (
+                                    <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800 border border-gray-300">
+                                      📝 {template.subtasks.length} subtasks
+                                    </span>
+                                  )}
+                                  
+                                  {/* Due offset badge */}
+                                  {template.due_offset_days && (
+                                    <span className="px-2 py-1 rounded text-xs font-medium bg-indigo-100 text-indigo-800 border border-indigo-300">
+                                      📅 {template.due_offset_days}d offset
+                                    </span>
+                                  )}
+                                </div>
+                                
+                                <p className="text-xs text-gray-500">
+                                  Title: "{template.title_template}"
+                                </p>
+                              </div>
+                              
+                              <div className="flex flex-col gap-2">
+                                <button
+                                  onClick={() => {
+                                    handleUseTemplate(template.id);
+                                    setShowTemplateManager(false);
+                                  }}
+                                  className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
+                                >
+                                  Use
+                                </button>
+                                <button
+                                  onClick={() => handleEditTemplate(template)}
+                                  className="px-3 py-1 text-sm text-blue-600 hover:text-blue-800"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteTemplate(template.id)}
+                                  className="px-3 py-1 text-sm text-red-600 hover:text-red-800"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              <button
+                onClick={() => setShowTemplateManager(false)}
+                className="mt-6 w-full px-4 py-2 bg-gray-300 rounded-lg hover:bg-gray-400"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Template Modal */}
+        {showEditTemplateModal && editingTemplate && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full">
+              <h2 className="text-xl font-semibold mb-4">Edit Template</h2>
+              
+              <form onSubmit={handleUpdateTemplate} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Template Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={editTemplateName}
+                    onChange={(e) => setEditTemplateName(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    required
+                    maxLength={100}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    value={editTemplateDescription}
+                    onChange={(e) => setEditTemplateDescription(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    maxLength={500}
+                    rows={3}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Category
+                  </label>
+                  <input
+                    type="text"
+                    value={editTemplateCategory}
+                    onChange={(e) => setEditTemplateCategory(e.target.value)}
+                    list="edit-category-suggestions"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    maxLength={50}
+                  />
+                  <datalist id="edit-category-suggestions">
+                    {SUGGESTED_CATEGORIES.map(cat => (
+                      <option key={cat} value={cat} />
+                    ))}
+                  </datalist>
+                </div>
+
+                <p className="text-xs text-gray-500">
+                  Note: You can only edit name, description, and category. Template settings (priority, recurrence, etc.) cannot be changed.
+                </p>
+
+                <div className="flex gap-3">
+                  <button
+                    type="submit"
+                    className="flex-1 px-6 py-2 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700"
+                  >
+                    Update
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEditTemplateModal(false);
+                      setEditingTemplate(null);
+                    }}
+                    className="flex-1 px-6 py-2 bg-gray-200 text-gray-800 font-medium rounded-lg hover:bg-gray-300"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
