@@ -1,10 +1,10 @@
 import Database from 'better-sqlite3';
 import path from 'path';
-import { REMINDER_OPTIONS, validateReminderMinutes, getReminderAbbreviation } from './types';
+import { REMINDER_OPTIONS, validateReminderMinutes, getReminderAbbreviation, calculateProgress, validateSubtaskTitle } from './types';
 import type { ReminderMinutes } from './types';
 
 // Re-export for convenience
-export { REMINDER_OPTIONS, validateReminderMinutes, getReminderAbbreviation } from './types';
+export { REMINDER_OPTIONS, validateReminderMinutes, getReminderAbbreviation, calculateProgress, validateSubtaskTitle } from './types';
 export type { ReminderMinutes } from './types';
 
 // Initialize database
@@ -54,6 +54,17 @@ export interface Subtask {
   completed: boolean;
   position: number;
   created_at: string;
+}
+
+export interface SubtaskProgress {
+  total: number;
+  completed: number;
+  percentage: number;
+}
+
+export interface TodoWithSubtasks extends Todo {
+  subtasks: Subtask[];
+  progress: SubtaskProgress;
 }
 
 export interface Tag {
@@ -511,6 +522,16 @@ export const subtaskDB = {
   delete: (id: number): void => {
     const stmt = db.prepare('DELETE FROM subtasks WHERE id = ?');
     stmt.run(id);
+  },
+
+  getNextPosition: (todoId: number): number => {
+    const stmt = db.prepare(`
+      SELECT COALESCE(MAX(position), -1) + 1 as next_position 
+      FROM subtasks 
+      WHERE todo_id = ?
+    `);
+    const result = stmt.get(todoId) as { next_position: number } | undefined;
+    return result?.next_position ?? 0;
   },
 };
 

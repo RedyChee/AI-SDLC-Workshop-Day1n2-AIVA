@@ -3,6 +3,8 @@
  * This file can be safely imported in both client and server code
  */
 
+import type { Subtask, SubtaskProgress } from './db';
+
 // Reminder timing options (in minutes)
 export type ReminderMinutes = 15 | 30 | 60 | 120 | 1440 | 2880 | 10080 | null;
 
@@ -33,4 +35,22 @@ export function validateReminderMinutes(minutes: any): ReminderMinutes {
     return numMinutes as ReminderMinutes;
   }
   return null;
+}
+
+// Calculate progress for subtasks
+export function calculateProgress(subtasks: Subtask[]): SubtaskProgress {
+  const total = subtasks.length;
+  const completed = subtasks.filter(st => st.completed).length;
+  const percentage = total === 0 ? 0 : Math.round((completed / total) * 100);
+  
+  return { total, completed, percentage };
+}
+
+// Validate subtask title
+export function validateSubtaskTitle(title: any): string | null {
+  if (typeof title !== 'string') return null;
+  const trimmed = title.trim();
+  if (trimmed.length === 0) return null;
+  if (trimmed.length > 500) return null; // Max length
+  return trimmed;
 }

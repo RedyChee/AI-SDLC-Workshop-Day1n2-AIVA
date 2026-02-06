@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { todoDB } from '@/lib/db';
+import { todoDB, subtaskDB, calculateProgress } from '@/lib/db';
 import { validateReminderMinutes } from '@/lib/types';
 import { getSingaporeNow } from '@/lib/timezone';
 
@@ -17,7 +17,19 @@ export async function GET(request: NextRequest) {
 
   try {
     const todos = todoDB.getAllByUser(session.userId);
-    return NextResponse.json({ todos }, { status: 200 });
+    
+    // Fetch subtasks for each todo and calculate progress
+    const todosWithSubtasks = todos.map(todo => {
+      const subtasks = subtaskDB.getByTodoId(todo.id);
+      const progress = calculateProgress(subtasks);
+      return {
+        ...todo,
+        subtasks,
+        progress,
+      };
+    });
+    
+    return NextResponse.json({ todos: todosWithSubtasks }, { status: 200 });
   } catch (error) {
     console.error('Error fetching todos:', error);
     return NextResponse.json(

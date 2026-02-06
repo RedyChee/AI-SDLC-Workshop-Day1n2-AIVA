@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { todoDB, RecurrencePattern } from '@/lib/db';
+import { todoDB, RecurrencePattern, subtaskDB, calculateProgress } from '@/lib/db';
 import { validateReminderMinutes } from '@/lib/types';
 import { getSingaporeNow, addDays, addMonths, addYears } from '@/lib/timezone';
 
@@ -170,7 +170,11 @@ export async function PUT(
     // Update the current todo
     const updated = todoDB.update(parseInt(id), updateData);
 
-    return NextResponse.json(updated, { status: 200 });
+    // Get subtasks and progress for the response
+    const subtasks = subtaskDB.getByTodoId(updated.id);
+    const progress = calculateProgress(subtasks);
+
+    return NextResponse.json({ ...updated, subtasks, progress }, { status: 200 });
   } catch (error) {
     console.error('Error updating todo:', error);
     return NextResponse.json(
