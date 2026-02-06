@@ -210,13 +210,13 @@ This document provides a comprehensive checklist for evaluating the completeness
 - [x] API endpoint: `DELETE /api/tags/[id]`
 - [x] API endpoint: `POST /api/todos/[id]/tags`
 - [x] API endpoint: `DELETE /api/todos/[id]/tags`
-- [ ] "Manage Tags" modal
-- [ ] Tag creation form (name + color picker)
-- [ ] Tag list with edit/delete buttons
-- [ ] Tag selection in todo form (checkboxes)
-- [ ] Tag badges on todos (colored)
-- [ ] Click badge to filter by tag
-- [ ] Tag filter indicator with clear button
+- [x] "Manage Tags" modal
+- [x] Tag creation form (name + color picker)
+- [x] Tag list with edit/delete buttons
+- [x] Tag selection in todo form (checkboxes)
+- [x] Tag badges on todos (colored)
+- [x] Click badge to filter by tag
+- [x] Tag filter indicator with clear button
 
 **Testing:**
 - [x] E2E test: Create tag
@@ -224,7 +224,7 @@ This document provides a comprehensive checklist for evaluating the completeness
 - [x] E2E test: Delete tag
 - [x] E2E test: Assign multiple tags to todo
 - [x] E2E test: Filter by tag (needs UI implementation)
-- [ ] E2E test: Duplicate tag name validation
+- [x] E2E test: Duplicate tag name validation
 - [x] Unit test: Tag name validation (13 tests in validation.test.ts)
 
 **Acceptance Criteria:**
@@ -232,7 +232,7 @@ This document provides a comprehensive checklist for evaluating the completeness
 - [x] Custom colors work
 - [x] Editing tag updates all todos
 - [x] Deleting tag removes from todos
-- [ ] Filter works correctly
+- [x] Filter works correctly
 
 ---
 
