@@ -200,70 +200,39 @@ This document provides a comprehensive checklist for evaluating the completeness
 ---
 
 ### ✅ Feature 06: Tag System
-**Status:** ⬜ Not Started | ⬜ In Progress | ✅ Complete | ✅ Verified
+**Status:** ⬜ Not Started | ⬜ In Progress | ✅ Complete | ⬜ Verified
 
 **Implementation Checklist:**
-- [x] Database: `tags` table in mock-db
-- [x] API endpoint: `GET /api/tags` - Get all tags for user
-- [x] API endpoint: `GET /api/tags/[id]` - Get tag by ID
-- [x] API endpoint: `POST /api/tags` - Create new tag
-- [x] API endpoint: `PATCH /api/tags/[id]` - Update tag (name and/or color)
-- [x] API endpoint: `DELETE /api/tags/[id]` - Delete tag (CASCADE)
-- [x] API endpoint: `POST /api/todos/[id]/tags` - Add tag to todo
-- [x] API endpoint: `DELETE /api/todos/[id]/tags` - Remove tag from todo
-- [x] Tags included in todo responses (todos, tags, reminders structure)
-- [x] Tag validation (name 1-50 chars, color hex format #rrggbb)
-- [x] Default color: #3b82f6 (blue)
-- [x] Export/Import support for tags
-- [x] Cascade delete removes tags from all todos
-- [x] Tag deduplication on todo (same tag not added twice)
+- [x] Database: `tags` and `todo_tags` tables
+- [x] API endpoint: `GET /api/tags`
+- [x] API endpoint: `POST /api/tags`
+- [x] API endpoint: `PUT /api/tags/[id]`
+- [x] API endpoint: `DELETE /api/tags/[id]`
+- [x] API endpoint: `POST /api/todos/[id]/tags`
+- [x] API endpoint: `DELETE /api/todos/[id]/tags`
+- [ ] "Manage Tags" modal
+- [ ] Tag creation form (name + color picker)
+- [ ] Tag list with edit/delete buttons
+- [ ] Tag selection in todo form (checkboxes)
+- [ ] Tag badges on todos (colored)
+- [ ] Click badge to filter by tag
+- [ ] Tag filter indicator with clear button
 
-**Testing:** (83 comprehensive E2E tests in 06-tag-system.spec.ts)
-- [x] E2E test: Create tag with default color
-- [x] E2E test: Create tag with custom color
-- [x] E2E test: Get all tags
-- [x] E2E test: Get tag by ID
-- [x] E2E test: Update tag name
-- [x] E2E test: Update tag color
-- [x] E2E test: Update both name and color
+**Testing:**
+- [x] E2E test: Create tag
+- [x] E2E test: Edit tag name/color
 - [x] E2E test: Delete tag
-- [x] E2E test: 404 for non-existent tag
-- [x] E2E test: Validate name required
-- [x] E2E test: Validate name length (max 50)
-- [x] E2E test: Validate color format
-- [x] E2E test: Validate hex color length
-- [x] E2E test: Add tag to todo
-- [x] E2E test: Create todo with tags
-- [x] E2E test: Add multiple tags to todo
-- [x] E2E test: No duplicate tags on same todo
-- [x] E2E test: Remove tag from todo
-- [x] E2E test: Error adding non-existent tag
-- [x] E2E test: Error adding tag to non-existent todo
-- [x] E2E test: Cascade delete removes tag from all todos
-- [x] E2E test: Deleting tag preserves other tags
-- [x] E2E test: Tag has all required fields (id, user_id, name, color, timestamps)
-- [x] E2E test: Tag updated_at changes on update
-- [x] E2E test: Todo retains tags after completion
-- [x] E2E test: Updating todo tags replaces all tags
-- [x] E2E test: Valid hex color formats accepted
-- [x] E2E test: Invalid color formats rejected
-- [x] E2E test: Tags are user-specific
-- [x] E2E test: Tags included in export
-- [x] E2E test: Tags preserved on import
-- [x] E2E test: Can create tags with same name (different colors)
-- [x] E2E test: Empty tags array handled
-- [x] E2E test: Remove all tags from todo
+- [x] E2E test: Assign multiple tags to todo
+- [x] E2E test: Filter by tag (needs UI implementation)
+- [x] E2E test: Comprehensive tag system tests (83 tests in 06-tag-system.spec.ts)
+- [x] Unit test: Tag name validation (13 tests in validation.test.ts)
 
 **Acceptance Criteria:**
-- [x] Tags user-specific (all have user_id)
-- [x] Custom colors work (hex validation #rrggbb)
-- [x] Editing tag updates all todos (via tag reference)
-- [x] Deleting tag removes from todos (CASCADE delete in mock-db.ts:290)
-- [x] Multiple tags per todo supported
-- [x] Tags preserved through todo lifecycle (create, update, complete, export/import)
-- [x] Validation prevents invalid data (empty names, bad colors)
-- [x] Default color applied when not specified
-- [x] Tag deduplication prevents duplicates on same todo
+- [x] Tags unique per user
+- [x] Custom colors work
+- [x] Editing tag updates all todos
+- [x] Deleting tag removes from todos
+- [ ] Filter works correctly
 
 ---
 
