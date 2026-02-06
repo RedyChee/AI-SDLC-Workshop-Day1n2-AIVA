@@ -214,7 +214,6 @@ export default function TodoPage() {
   const [todos, setTodos] = useState<TodoWithSubtasks[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   
   // Subtask state
   const [expandedTodos, setExpandedTodos] = useState<Set<number>>(new Set());
@@ -328,13 +327,13 @@ export default function TodoPage() {
     fetchTemplates();
   }, []);
   
-  // Start notification polling when logged in
+  // Start notification polling when enabled
   useEffect(() => {
-    if (isLoggedIn && enabled) {
+    if (enabled) {
       startPolling();
       return () => stopPolling();
     }
-  }, [isLoggedIn, enabled, startPolling, stopPolling]);
+  }, [enabled, startPolling, stopPolling]);
 
   const fetchTodos = async () => {
     try {
@@ -342,7 +341,8 @@ export default function TodoPage() {
       const response = await fetch('/api/todos');
       
       if (response.status === 401) {
-        setIsLoggedIn(false);
+        // Session expired - middleware should redirect, but just in case
+        router.push('/auth');
         setLoading(false);
         return;
       }
@@ -353,7 +353,6 @@ export default function TodoPage() {
       
       const data = await response.json();
       setTodos(data.todos);
-      setIsLoggedIn(true);
       setError(null);
     } catch (err) {
       setError('Failed to load todos');
@@ -850,27 +849,6 @@ export default function TodoPage() {
            dueDateFrom !== '' ||
            dueDateTo !== '';
   };
-
-  const handleDevLogin = async () => {
-    try {
-      const response = await fetch('/api/auth/dev-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: 'testuser' }),
-      });
-
-      if (response.ok) {
-        setIsLoggedIn(true);
-        fetchTodos();
-        fetchTags();
-      } else {
-        alert('Login failed');
-      }
-    } catch (error) {
-      console.error('Login error:', error);
-      alert('Login failed');
-    }
-  };
   
   const handleEnableNotifications = async () => {
     const granted = await requestPermission();
@@ -1277,23 +1255,6 @@ export default function TodoPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-gray-600">Loading...</div>
-      </div>
-    );
-  }
-
-  if (!isLoggedIn) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Todo App</h1>
-          <p className="text-gray-600 mb-6">Development Mode - Click to login</p>
-          <button
-            onClick={handleDevLogin}
-            className="w-full px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Login as Test User
-          </button>
-        </div>
       </div>
     );
   }
