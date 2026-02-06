@@ -1070,7 +1070,8 @@ export default function TodoPage() {
             </div>
             
             {/* Priority Statistics */}
-            <div className="flex gap-4 text-sm">\n              <div className="flex items-center gap-1.5">
+            <div className="flex gap-4 text-sm">
+              <div className="flex items-center gap-1.5">
                 <span className="px-2 py-1 bg-red-100 text-red-800 border border-red-300 rounded-full text-xs font-semibold">
                   HIGH
                 </span>
