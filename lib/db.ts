@@ -391,7 +391,7 @@ export function validateCategory(category: unknown): string | null {
 
 export function validateDueOffsetDays(days: unknown): number | null {
   if (days === null || days === undefined) return null;
-  const num = typeof days === 'string' ? parseInt(days, 10) : days;
+  const num = typeof days === 'string' ? parseInt(days, 10) : (typeof days === 'number' ? days : NaN);
   if (isNaN(num)) return null;
   if (num < 1 || num > 365) return null;
   return num;

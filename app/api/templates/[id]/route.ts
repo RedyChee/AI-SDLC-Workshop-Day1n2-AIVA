@@ -24,19 +24,20 @@ export async function PUT(
     });
     
     return NextResponse.json({ template });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as { message?: string };
     console.error('Update template error:', error);
     
-    if (error.message === 'Template not found') {
-      return NextResponse.json({ error: error.message }, { status: 404 });
+    if (err.message === 'Template not found') {
+      return NextResponse.json({ error: err.message }, { status: 404 });
     }
     
-    if (error.message === 'Template name already exists') {
-      return NextResponse.json({ error: error.message }, { status: 409 });
+    if (err.message === 'Template name already exists') {
+      return NextResponse.json({ error: err.message }, { status: 409 });
     }
     
     return NextResponse.json(
-      { error: error.message || 'Failed to update template' },
+      { error: err.message || 'Failed to update template' },
       { status: 400 }
     );
   }
@@ -57,11 +58,12 @@ export async function DELETE(
   try {
     templateDB.delete(templateId, session.userId);
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as { message?: string };
     console.error('Delete template error:', error);
     
-    if (error.message === 'Template not found') {
-      return NextResponse.json({ error: error.message }, { status: 404 });
+    if (err.message === 'Template not found') {
+      return NextResponse.json({ error: err.message }, { status: 404 });
     }
     
     return NextResponse.json(

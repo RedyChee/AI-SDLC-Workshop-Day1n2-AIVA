@@ -1,14 +1,17 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+import type { NextConfig } from 'next';
+
+const nextConfig: NextConfig = {
   reactStrictMode: true,
   eslint: {
+    // Disable ESLint during production builds (warnings won't block deploy)
     ignoreDuringBuilds: true,
   },
   typescript: {
+    // Keep TypeScript checking enabled (important for type safety)
     ignoreBuildErrors: false,
   },
   experimental: {
-    // Disable static error pages to avoid the Html import issue
+    // Optimize package imports
     optimizePackageImports: ['react-icons'],
   },
 };

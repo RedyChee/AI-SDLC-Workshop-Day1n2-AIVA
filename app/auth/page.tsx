@@ -68,14 +68,15 @@ function AuthPageContent() {
           setTimeout(() => reject(new Error('Registration timed out after 60 seconds. Please try again.')), 60000)
         );
         credential = await Promise.race([registrationPromise, timeoutPromise]);
-      } catch (err: any) {
-        if (err.name === 'NotAllowedError') {
+      } catch (err: unknown) {
+        const error = err as { name?: string; message?: string };
+        if (error.name === 'NotAllowedError') {
           throw new Error('Registration was cancelled. Please try again.');
         }
-        if (err.message.includes('timed out')) {
-          throw new Error(err.message);
+        if (error.message?.includes('timed out')) {
+          throw new Error(error.message);
         }
-        throw new Error('WebAuthn registration failed: ' + err.message);
+        throw new Error('WebAuthn registration failed: ' + (error.message || 'Unknown error'));
       }
 
       // Step 3: Send credential to server for verification
@@ -96,9 +97,10 @@ function AuthPageContent() {
 
       // Success! Redirect to app
       router.push(returnTo);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const error = err as { message?: string };
       console.error('Registration error:', err);
-      setError(err.message || 'Registration failed');
+      setError(error.message || 'Registration failed');
       setLoading(false);
     }
   };
@@ -138,12 +140,13 @@ function AuthPageContent() {
           setTimeout(() => reject(new Error('Authentication timed out after 60 seconds. Please try again or use the device you registered with.')), 60000)
         );
         credential = await Promise.race([authPromise, timeoutPromise]);
-      } catch (err: any) {
-        if (err.name === 'NotAllowedError') {
+      } catch (err: unknown) {
+        const error = err as { name?: string; message?: string };
+        if (error.name === 'NotAllowedError') {
           throw new Error('Authentication was cancelled. Please use the same device you registered with.');
         }
-        if (err.message.includes('timed out')) {
-          throw new Error(err.message);
+        if (error.message?.includes('timed out')) {
+          throw new Error(error.message);
         }
         throw new Error('WebAuthn authentication failed. Make sure you\'re using the device you registered with.');
       }
@@ -166,9 +169,10 @@ function AuthPageContent() {
 
       // Success! Redirect to app
       router.push(returnTo);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const error = err as { message?: string };
       console.error('Login error:', err);
-      setError(err.message || 'Login failed');
+      setError(error.message || 'Login failed');
       setLoading(false);
     }
   };
@@ -217,8 +221,9 @@ function AuthPageContent() {
       setMode('register');
       setError('');
       alert(data.message);
-    } catch (err: any) {
-      alert(err.message || 'Failed to reset passkey');
+    } catch (err: unknown) {
+      const error = err as { message?: string };
+      alert(error.message || 'Failed to reset passkey');
     } finally {
       setResetLoading(false);
     }

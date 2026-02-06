@@ -5,7 +5,7 @@ import { clearSessionCookie } from '@/lib/auth';
  * POST /api/auth/logout
  * Clear session cookie and logout user
  */
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     await clearSessionCookie();
 

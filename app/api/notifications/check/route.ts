@@ -7,7 +7,7 @@ import { todoDB } from '@/lib/db';
  * Check for pending notifications and mark them as sent
  * This endpoint is polled by the frontend every minute
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });

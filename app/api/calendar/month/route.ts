@@ -50,7 +50,15 @@ export async function GET(request: NextRequest) {
         AND DATE(due_date) <= ?
       ORDER BY due_date ASC, priority DESC
     `);
-    const rows = stmt.all(session.userId, gridStartStr, gridEndStr) as any[];
+    const rows = stmt.all(session.userId, gridStartStr, gridEndStr) as Array<{
+      id: number;
+      title: string;
+      completed: number;
+      due_date: string | null;
+      priority: string;
+      recurrence_pattern: string | null;
+      reminder_minutes: number | null;
+    }>;
     const todos = rows.map(row => ({
       ...row,
       completed: Boolean(row.completed),
@@ -62,7 +70,12 @@ export async function GET(request: NextRequest) {
       WHERE date >= ? AND date <= ?
       ORDER BY date ASC
     `);
-    const holidays = holidayStmt.all(startOfMonth, endOfMonth) as any[];
+    const holidays = holidayStmt.all(startOfMonth, endOfMonth) as Array<{
+      id: number;
+      date: string;
+      name: string;
+      type: string;
+    }>;
 
     return NextResponse.json({
       year,
