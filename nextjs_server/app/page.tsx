@@ -261,7 +261,7 @@ export default function Home() {
 
   const handleSaveTag = async (tagId: string) => {
     const response = await fetch(`/api/tags/${tagId}`, {
-      method: 'PATCH',
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: editTagName.trim(), color: editTagColor }),
     })

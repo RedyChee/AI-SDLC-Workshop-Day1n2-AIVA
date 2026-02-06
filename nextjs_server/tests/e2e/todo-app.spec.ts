@@ -27,7 +27,20 @@ test.describe('Todo app core flows', () => {
     await page.getByTestId('todo-search').fill('workshop')
     await expect(todoItems).toHaveCount(1)
 
+    // Wait for the PUT request to complete before checking the count
+    const putResponsePromise = page.waitForResponse(response => 
+      response.url().includes('/api/todos/') && response.request().method() === 'PUT'
+    )
+    const refreshResponsePromise = page.waitForResponse(response =>
+      response.url().endsWith('/api/todos') && response.request().method() === 'GET'
+    )
+
     await page.getByTestId('todo-toggle').first().click()
+
+    const putResponse = await putResponsePromise
+    expect(putResponse.ok()).toBeTruthy()
+    await refreshResponsePromise
+
     await expect(page.getByTestId('completed-count')).toHaveText('1')
   })
 
@@ -491,7 +504,7 @@ test.describe('Todo app core flows', () => {
     const createData = await createResponse.json()
     const tagId = createData.data.id
     
-    const updateResponse = await request.patch(`/api/tags/${tagId}`, {
+    const updateResponse = await request.put(`/api/tags/${tagId}`, {
       data: { name: 'NewName', color: '#0000ff' },
     })
     expect(updateResponse.ok()).toBeTruthy()
@@ -599,7 +612,7 @@ test.describe('Todo app core flows', () => {
     const createData = await createResponse.json()
     const templateId = createData.data.id
     
-    const updateResponse = await request.patch(`/api/templates/${templateId}`, {
+    const updateResponse = await request.put(`/api/templates/${templateId}`, {
       data: {
         name: 'Updated Template',
         description: 'Updated description',

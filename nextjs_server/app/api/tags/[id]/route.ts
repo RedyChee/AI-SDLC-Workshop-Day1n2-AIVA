@@ -30,7 +30,7 @@ export async function GET(
   }
 }
 
-export async function PATCH(
+async function handleUpdate(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -47,19 +47,33 @@ export async function PATCH(
       )
     }
 
-    const updated = tagDB.update(id, validated)
+    const updated = await tagDB.update(id, validated)
 
     return NextResponse.json({
       success: true,
       data: updated,
     })
   } catch (error) {
-    console.error('PATCH /api/tags/[id] error:', error)
+    console.error('PUT /api/tags/[id] error:', error)
     return NextResponse.json(
       { error: 'Failed to update tag' },
       { status: 400 }
     )
   }
+}
+
+export async function PUT(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  return handleUpdate(request, context)
+}
+
+export async function PATCH(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  return handleUpdate(request, context)
 }
 
 export async function DELETE(

@@ -27,7 +27,7 @@ export default function TodoItem({ todo, availableTags, onDeleted, onToggled, on
     try {
       setIsUpdating(true)
       const response = await fetch(`/api/todos/${todo.id}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_completed: !todo.is_completed }),
       })
@@ -76,7 +76,7 @@ export default function TodoItem({ todo, availableTags, onDeleted, onToggled, on
     try {
       setIsUpdating(true)
       const response = await fetch(`/api/todos/${todo.id}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tag_ids: [...todo.tags.map((t: any) => t.id), tagId] }),
       })
@@ -94,7 +94,7 @@ export default function TodoItem({ todo, availableTags, onDeleted, onToggled, on
     try {
       setIsUpdating(true)
       const response = await fetch(`/api/todos/${todo.id}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: editTitle.trim(),
@@ -176,7 +176,7 @@ export default function TodoItem({ todo, availableTags, onDeleted, onToggled, on
                     try {
                       setIsUpdating(true)
                       const response = await fetch(`/api/todos/${todo.id}`, {
-                        method: 'PATCH',
+                        method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ priority: newPriority }),
                       })

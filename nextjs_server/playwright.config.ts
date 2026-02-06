@@ -6,6 +6,7 @@ const useExternalServer = process.env.PLAYWRIGHT_EXTERNAL_SERVER === '1'
 export default defineConfig({
   testDir: './tests/e2e',
   timeout: 60_000,
+  workers: 1,
   expect: {
     timeout: 10_000,
   },

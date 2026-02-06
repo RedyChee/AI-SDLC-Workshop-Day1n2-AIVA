@@ -1,6 +1,6 @@
 import { v4 as uuid } from 'uuid'
 import { TodoWithDetails, Template, Tag, Reminder, Subtask } from './types'
-import { getNowSingaporeDateString } from './timezone'
+import { getNowSingaporeDateString, toSingaporeDateTimeString } from './timezone'
 
 // In-memory mock database for development
 // For production, use Prisma + PostgreSQL or better-sqlite3
@@ -181,7 +181,7 @@ export async function updateTodo(
   const todo = todoStore.get(id)
   if (!todo) return null
 
-  const updated = { ...todo, ...data, updated_at: getNowSingaporeDateString() }
+  const updated = { ...todo, ...data, updated_at: toSingaporeDateTimeString(new Date()) }
   todoStore.set(id, updated)
   return updated
 }
@@ -279,7 +279,7 @@ export async function updateTag(
   const tag = tagStore.get(id)
   if (!tag) return null
 
-  const updated = { ...tag, ...data, updated_at: getNowSingaporeDateString() }
+  const updated = { ...tag, ...data, updated_at: toSingaporeDateTimeString(new Date()) }
   tagStore.set(id, updated)
   return updated
 }
@@ -338,7 +338,7 @@ export async function updateTemplate(
   const template = templateStore.get(id)
   if (!template) return null
 
-  const updated = { ...template, ...data, updated_at: getNowSingaporeDateString() }
+  const updated = { ...template, ...data, updated_at: toSingaporeDateTimeString(new Date()) }
   templateStore.set(id, updated)
   return updated
 }
@@ -355,7 +355,7 @@ export async function updateSubtask(
   const subtask = subtaskStore.get(id)
   if (!subtask) return null
 
-  const updated = { ...subtask, ...data, updated_at: getNowSingaporeDateString() }
+  const updated = { ...subtask, ...data, updated_at: toSingaporeDateTimeString(new Date()) }
   subtaskStore.set(id, updated)
 
   // Update in todo

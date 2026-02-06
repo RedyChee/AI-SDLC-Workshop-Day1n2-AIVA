@@ -78,7 +78,7 @@ test.describe('Feature 06: Tag System', () => {
       const createBody = await createResponse.json()
       const tagId = createBody.data.id
 
-      const updateResponse = await request.patch(`/api/tags/${tagId}`, {
+      const updateResponse = await request.put(`/api/tags/${tagId}`, {
         data: { name: 'Work' },
       })
       expect(updateResponse.ok()).toBeTruthy()
@@ -95,7 +95,7 @@ test.describe('Feature 06: Tag System', () => {
       const createBody = await createResponse.json()
       const tagId = createBody.data.id
 
-      const updateResponse = await request.patch(`/api/tags/${tagId}`, {
+      const updateResponse = await request.put(`/api/tags/${tagId}`, {
         data: { color: '#6366f1' },
       })
       expect(updateResponse.ok()).toBeTruthy()
@@ -112,7 +112,7 @@ test.describe('Feature 06: Tag System', () => {
       const createBody = await createResponse.json()
       const tagId = createBody.data.id
 
-      const updateResponse = await request.patch(`/api/tags/${tagId}`, {
+      const updateResponse = await request.put(`/api/tags/${tagId}`, {
         data: { name: 'Important', color: '#ef4444' },
       })
       expect(updateResponse.ok()).toBeTruthy()
@@ -487,7 +487,7 @@ test.describe('Feature 06: Tag System', () => {
       // Wait a moment to ensure timestamp difference
       await new Promise(resolve => setTimeout(resolve, 100))
 
-      const updateResponse = await request.patch(`/api/tags/${tagId}`, {
+      const updateResponse = await request.put(`/api/tags/${tagId}`, {
         data: { name: 'Work Updated' },
       })
       const updateBody = await updateResponse.json()
@@ -516,7 +516,7 @@ test.describe('Feature 06: Tag System', () => {
       const todoId = todoBody.data.id
 
       // Complete todo
-      const updateResponse = await request.patch(`/api/todos/${todoId}`, {
+      const updateResponse = await request.put(`/api/todos/${todoId}`, {
         data: { is_completed: true },
       })
       const updateBody = await updateResponse.json()
@@ -556,7 +556,7 @@ test.describe('Feature 06: Tag System', () => {
       const todoId = todoBody.data.id
 
       // Update todo with different tags
-      const updateResponse = await request.patch(`/api/todos/${todoId}`, {
+      const updateResponse = await request.put(`/api/todos/${todoId}`, {
         data: { tag_ids: [tag3Id] },
       })
       const updateBody = await updateResponse.json()
@@ -718,7 +718,7 @@ test.describe('Feature 06: Tag System', () => {
       const todoId = todoBody.data.id
 
       // Remove all tags
-      const updateResponse = await request.patch(`/api/todos/${todoId}`, {
+      const updateResponse = await request.put(`/api/todos/${todoId}`, {
         data: { tag_ids: [] },
       })
       const updateBody = await updateResponse.json()

@@ -1,7 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server'
 import { todoDB } from '@/lib/db'
 
-export async function PATCH(
+async function handleUpdate(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -23,12 +23,26 @@ export async function PATCH(
       data: updated,
     })
   } catch (error) {
-    console.error('PATCH /api/subtasks/[id] error:', error)
+    console.error('PUT /api/subtasks/[id] error:', error)
     return NextResponse.json(
       { error: 'Failed to update subtask' },
       { status: 400 }
     )
   }
+}
+
+export async function PUT(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  return handleUpdate(request, context)
+}
+
+export async function PATCH(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  return handleUpdate(request, context)
 }
 
 export async function DELETE(

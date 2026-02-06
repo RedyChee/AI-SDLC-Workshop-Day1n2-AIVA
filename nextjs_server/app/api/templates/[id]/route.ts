@@ -21,7 +21,7 @@ export async function GET(
   }
 }
 
-export async function PATCH(
+async function handleUpdate(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -41,9 +41,23 @@ export async function PATCH(
 
     return NextResponse.json({ success: true, data: updated })
   } catch (error) {
-    console.error('PATCH /api/templates/[id] error:', error)
+    console.error('PUT /api/templates/[id] error:', error)
     return NextResponse.json({ error: 'Failed to update template' }, { status: 400 })
   }
+}
+
+export async function PUT(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  return handleUpdate(request, context)
+}
+
+export async function PATCH(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  return handleUpdate(request, context)
 }
 
 export async function DELETE(
