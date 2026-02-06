@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Priority, Todo, UpdateTodoInput } from '@/lib/db';
+import { Priority, Todo, UpdateTodoInput, RecurrencePattern } from '@/lib/db';
 import { 
   formatSingaporeDate, 
   getMinimumDueDate, 
@@ -22,6 +22,7 @@ export default function TodoPage() {
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState<Priority>('medium');
   const [dueDate, setDueDate] = useState('');
+  const [recurrencePattern, setRecurrencePattern] = useState<RecurrencePattern | ''>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Edit modal state
@@ -29,6 +30,7 @@ export default function TodoPage() {
   const [editTitle, setEditTitle] = useState('');
   const [editPriority, setEditPriority] = useState<Priority>('medium');
   const [editDueDate, setEditDueDate] = useState('');
+  const [editRecurrencePattern, setEditRecurrencePattern] = useState<RecurrencePattern | ''>('');
   
   // Filter state
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'all'>('all');
@@ -93,6 +95,12 @@ export default function TodoPage() {
       alert('Title is required');
       return;
     }
+    
+    // Validate recurrence pattern requires due date
+    if (recurrencePattern && !dueDate) {
+      alert('Recurring todos require a due date');
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -104,6 +112,7 @@ export default function TodoPage() {
           title: trimmedTitle,
           priority,
           due_date: dueDate || null,
+          recurrence_pattern: recurrencePattern || null,
         }),
       });
 
@@ -122,6 +131,7 @@ export default function TodoPage() {
       setTitle('');
       setPriority('medium');
       setDueDate('');
+      setRecurrencePattern('');
     } catch (error) {
       console.error('Failed to create todo:', error);
       alert('Failed to create todo');
@@ -190,6 +200,7 @@ export default function TodoPage() {
     setEditTitle(todo.title);
     setEditPriority(todo.priority);
     setEditDueDate(todo.due_date ? formatForDateTimeLocal(todo.due_date) : '');
+    setEditRecurrencePattern(todo.recurrence_pattern || '');
   };
 
   const closeEditModal = () => {
@@ -197,6 +208,7 @@ export default function TodoPage() {
     setEditTitle('');
     setEditPriority('medium');
     setEditDueDate('');
+    setEditRecurrencePattern('');
   };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
@@ -207,6 +219,12 @@ export default function TodoPage() {
     const trimmedTitle = editTitle.trim();
     if (!trimmedTitle) {
       alert('Title is required');
+      return;
+    }
+    
+    // Validate recurrence pattern requires due date
+    if (editRecurrencePattern && !editDueDate) {
+      alert('Recurring todos require a due date');
       return;
     }
 
@@ -220,6 +238,7 @@ export default function TodoPage() {
           title: trimmedTitle,
           priority: editPriority,
           due_date: editDueDate || null,
+          recurrence_pattern: editRecurrencePattern || null,
         }),
       });
 
@@ -416,6 +435,25 @@ export default function TodoPage() {
               </div>
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Recurrence Pattern (Optional)</label>
+              <select
+                value={recurrencePattern}
+                onChange={(e) => setRecurrencePattern(e.target.value as RecurrencePattern | '')}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                disabled={isSubmitting}
+              >
+                <option value="">No Recurrence</option>
+                <option value="daily">🔄 Daily</option>
+                <option value="weekly">🔄 Weekly</option>
+                <option value="monthly">🔄 Monthly</option>
+                <option value="yearly">🔄 Yearly</option>
+              </select>
+              {recurrencePattern && !dueDate && (
+                <p className="mt-1 text-sm text-amber-600">⚠️ Recurring todos require a due date</p>
+              )}
+            </div>
+
             <button
               type="submit"
               disabled={isSubmitting}
@@ -557,6 +595,25 @@ export default function TodoPage() {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     disabled={isSubmitting}
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Recurrence Pattern</label>
+                  <select
+                    value={editRecurrencePattern}
+                    onChange={(e) => setEditRecurrencePattern(e.target.value as RecurrencePattern | '')}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    disabled={isSubmitting}
+                  >
+                    <option value="">No Recurrence</option>
+                    <option value="daily">🔄 Daily</option>
+                    <option value="weekly">🔄 Weekly</option>
+                    <option value="monthly">🔄 Monthly</option>
+                    <option value="yearly">🔄 Yearly</option>
+                  </select>
+                  {editRecurrencePattern && !editDueDate && (
+                    <p className="mt-1 text-sm text-amber-600">⚠️ Recurring todos require a due date</p>
+                  )}
                 </div>
 
                 <div className="flex gap-4 pt-4">
