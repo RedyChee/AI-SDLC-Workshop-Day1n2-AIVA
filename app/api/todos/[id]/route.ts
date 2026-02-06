@@ -177,8 +177,9 @@ export async function PUT(
     return NextResponse.json({ ...updated, subtasks, progress }, { status: 200 });
   } catch (error) {
     console.error('Error updating todo:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     return NextResponse.json(
-      { error: 'Failed to update todo' },
+      { error: 'Failed to update todo', details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }

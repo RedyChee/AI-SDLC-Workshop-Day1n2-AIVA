@@ -377,7 +377,7 @@ export const todoDB = {
       values.push(data.last_notification_sent);
     }
 
-    fields.push('updated_at = datetime("now")');
+    fields.push("updated_at = datetime('now')");
     values.push(id);
 
     const stmt = db.prepare(`

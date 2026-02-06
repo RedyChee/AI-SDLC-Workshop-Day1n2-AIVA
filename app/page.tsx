@@ -375,16 +375,19 @@ export default function TodoPage() {
       });
 
       if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Failed to update todo:', errorData);
         // Revert on failure
         setTodos(prev =>
           prev.map(t => (t.id === todo.id ? { ...t, completed: todo.completed } : t))
         );
-        alert('Failed to update todo');
+        alert(`Failed to update todo: ${errorData.error || 'Unknown error'}`);
       } else {
         // Refresh to get potential new recurring instance
         fetchTodos();
       }
     } catch (error) {
+      console.error('Error updating todo:', error);
       setTodos(prev =>
         prev.map(t => (t.id === todo.id ? { ...t, completed: todo.completed } : t))
       );
