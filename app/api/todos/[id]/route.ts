@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { todoDB, RecurrencePattern, subtaskDB, calculateProgress } from '@/lib/db';
+import { todoDB, RecurrencePattern, subtaskDB, todoTagDB, calculateProgress } from '@/lib/db';
 import { validateReminderMinutes } from '@/lib/types';
 import { getSingaporeNow, addDays, addMonths, addYears } from '@/lib/timezone';
 
@@ -157,7 +157,7 @@ export async function PUT(
       }
 
       // Create next instance with same metadata (including reminder)
-      todoDB.create({
+      const nextTodo = todoDB.create({
         user_id: session.userId,
         title: todo.title,
         priority: todo.priority,
@@ -165,16 +165,23 @@ export async function PUT(
         recurrence_pattern: todo.recurrence_pattern,
         reminder_minutes: todo.reminder_minutes ?? null,
       });
+      
+      // Copy tags to the next instance
+      const currentTags = todoTagDB.getTagsByTodo(todo.id);
+      for (const tag of currentTags) {
+        todoTagDB.add(nextTodo.id, tag.id);
+      }
     }
 
     // Update the current todo
     const updated = todoDB.update(parseInt(id), updateData);
 
-    // Get subtasks and progress for the response
+    // Get subtasks, tags, and progress for the response
     const subtasks = subtaskDB.getByTodoId(updated.id);
+    const tags = todoTagDB.getTagsByTodo(updated.id);
     const progress = calculateProgress(subtasks);
 
-    return NextResponse.json({ ...updated, subtasks, progress }, { status: 200 });
+    return NextResponse.json({ ...updated, subtasks, tags, progress }, { status: 200 });
   } catch (error) {
     console.error('Error updating todo:', error);
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');

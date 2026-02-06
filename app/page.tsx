@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, memo } from 'react';
-import { Priority, Todo, UpdateTodoInput, RecurrencePattern, Subtask, SubtaskProgress, TodoWithSubtasks } from '@/lib/db';
+import { Priority, Todo, UpdateTodoInput, RecurrencePattern, Subtask, SubtaskProgress, TodoWithSubtasks, Tag } from '@/lib/db';
 import { REMINDER_OPTIONS, ReminderMinutes, getReminderAbbreviation, calculateProgress } from '@/lib/types';
 import { 
   formatSingaporeDate, 
@@ -96,6 +96,19 @@ const TodoItem = memo(({
               <span className="text-xs px-2 py-1 bg-orange-100 text-orange-800 rounded border border-orange-300">
                 🔔 {getReminderAbbreviation(todo.reminder_minutes as ReminderMinutes)}
               </span>
+            )}
+            
+            {/* Tags */}
+            {(todo as any).tags && (todo as any).tags.length > 0 && (
+              (todo as any).tags.map((tag: Tag) => (
+                <span
+                  key={tag.id}
+                  className="text-xs px-2 py-1 rounded-full font-medium text-white"
+                  style={{ backgroundColor: tag.color }}
+                >
+                  {tag.name}
+                </span>
+              ))
             )}
           </div>
 
@@ -222,6 +235,18 @@ export default function TodoPage() {
   
   // Filter state
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'all'>('all');
+  const [tagFilter, setTagFilter] = useState<number | null>(null);
+  
+  // Tag management state
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [selectedTags, setSelectedTags] = useState<number[]>([]);
+  const [editSelectedTags, setEditSelectedTags] = useState<number[]>([]);
+  const [showTagModal, setShowTagModal] = useState(false);
+  const [tagName, setTagName] = useState('');
+  const [tagColor, setTagColor] = useState('#3B82F6');
+  const [editingTag, setEditingTag] = useState<Tag | null>(null);
+  const [editTagName, setEditTagName] = useState('');
+  const [editTagColor, setEditTagColor] = useState('');
   
   // Notifications hook
   const { 
@@ -233,9 +258,10 @@ export default function TodoPage() {
     stopPolling 
   } = useNotifications();
 
-  // Fetch todos on mount
+  // Fetch todos and tags on mount
   useEffect(() => {
     fetchTodos();
+    fetchTags();
   }, []);
   
   // Start notification polling when logged in
@@ -273,6 +299,164 @@ export default function TodoPage() {
     }
   };
 
+  const fetchTags = async () => {
+    try {
+      const response = await fetch('/api/tags');
+      
+      if (response.status === 401) {
+        return; // Not logged in yet
+      }
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch tags');
+      }
+      
+      const data = await response.json();
+      setTags(data);
+    } catch (err) {
+      console.error('Failed to load tags:', err);
+    }
+  };
+
+  const handleCreateTag = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const trimmedName = tagName.trim();
+    if (!trimmedName) {
+      alert('Tag name is required');
+      return;
+    }
+    
+    if (trimmedName.length > 50) {
+      alert('Tag name must be 50 characters or less');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: trimmedName,
+          color: tagColor,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(error.error || 'Failed to create tag');
+        return;
+      }
+
+      const newTag = await response.json();
+      setTags(prev => [...prev, newTag]);
+      setTagName('');
+      setTagColor('#3B82F6');
+    } catch (error) {
+      console.error('Failed to create tag:', error);
+      alert('Failed to create tag');
+    }
+  };
+
+  const handleEditTag = (tag: Tag) => {
+    setEditingTag(tag);
+    setEditTagName(tag.name);
+    setEditTagColor(tag.color);
+  };
+
+  const handleUpdateTag = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!editingTag) return;
+    
+    const trimmedName = editTagName.trim();
+    if (!trimmedName) {
+      alert('Tag name is required');
+      return;
+    }
+    
+    if (trimmedName.length > 50) {
+      alert('Tag name must be 50 characters or less');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/tags/${editingTag.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: trimmedName,
+          color: editTagColor,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(error.error || 'Failed to update tag');
+        return;
+      }
+
+      const updatedTag = await response.json();
+      setTags(prev => prev.map(t => t.id === updatedTag.id ? updatedTag : t));
+      setEditingTag(null);
+      setEditTagName('');
+      setEditTagColor('');
+      
+      // Refresh todos to get updated tag colors
+      fetchTodos();
+    } catch (error) {
+      console.error('Failed to update tag:', error);
+      alert('Failed to update tag');
+    }
+  };
+
+  const handleDeleteTag = async (tagId: number) => {
+    if (!confirm('Are you sure you want to delete this tag? It will be removed from all todos.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/tags/${tagId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(error.error || 'Failed to delete tag');
+        return;
+      }
+
+      setTags(prev => prev.filter(t => t.id !== tagId));
+      setSelectedTags(prev => prev.filter(id => id !== tagId));
+      setEditSelectedTags(prev => prev.filter(id => id !== tagId));
+      if (tagFilter === tagId) {
+        setTagFilter(null);
+      }
+      
+      // Refresh todos to remove deleted tag from todo items
+      fetchTodos();
+    } catch (error) {
+      console.error('Failed to delete tag:', error);
+      alert('Failed to delete tag');
+    }
+  };
+
+  const toggleTagSelection = (tagId: number) => {
+    setSelectedTags(prev => 
+      prev.includes(tagId)
+        ? prev.filter(id => id !== tagId)
+        : [...prev, tagId]
+    );
+  };
+
+  const toggleEditTagSelection = (tagId: number) => {
+    setEditSelectedTags(prev => 
+      prev.includes(tagId)
+        ? prev.filter(id => id !== tagId)
+        : [...prev, tagId]
+    );
+  };
+
   const handleDevLogin = async () => {
     try {
       const response = await fetch('/api/auth/dev-login', {
@@ -284,6 +468,7 @@ export default function TodoPage() {
       if (response.ok) {
         setIsLoggedIn(true);
         fetchTodos();
+        fetchTags();
       } else {
         alert('Login failed');
       }
@@ -333,6 +518,7 @@ export default function TodoPage() {
           due_date: dueDate || null,
           recurrence_pattern: recurrencePattern || null,
           reminder_minutes: reminderMinutes,
+          tag_ids: selectedTags,
         }),
       });
 
@@ -352,6 +538,7 @@ export default function TodoPage() {
       setPriority('medium');
       setDueDate('');
       setRecurrencePattern('');
+      setSelectedTags([]);
       setReminderMinutes(null);
     } catch (error) {
       console.error('Failed to create todo:', error);
@@ -607,10 +794,18 @@ export default function TodoPage() {
     }
   };
 
-  // Organize todos into sections with priority filtering
-  const filteredTodos = priorityFilter === 'all' 
+  // Organize todos into sections with priority and tag filtering
+  let filteredTodos = priorityFilter === 'all' 
     ? todos 
     : todos.filter(todo => todo.priority === priorityFilter);
+  
+  // Apply tag filter
+  if (tagFilter !== null) {
+    filteredTodos = filteredTodos.filter(todo => {
+      const todoTags = (todo as any).tags || [];
+      return todoTags.some((tag: Tag) => tag.id === tagFilter);
+    });
+  }
   
   const overdueTodos = filteredTodos.filter(t => !t.completed && t.due_date && isOverdue(t.due_date));
   const pendingTodos = filteredTodos.filter(t => !t.completed && (!t.due_date || !isOverdue(t.due_date)));
@@ -771,6 +966,56 @@ export default function TodoPage() {
               </div>
             </div>
 
+            {/* Tag Selection */}
+            {tags.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">Tags (Optional)</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowTagModal(true)}
+                    className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    ✚ Manage Tags
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {tags.map(tag => (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => toggleTagSelection(tag.id)}
+                      className={`px-3 py-1.5 text-sm rounded-full font-medium transition-all ${
+                        selectedTags.includes(tag.id)
+                          ? 'text-white border-2'
+                          : 'bg-white border-2 text-gray-700'
+                      }`}
+                      style={{
+                        backgroundColor: selectedTags.includes(tag.id) ? tag.color : 'white',
+                        borderColor: tag.color,
+                      }}
+                    >
+                      {selectedTags.includes(tag.id) && '✓ '}
+                      {tag.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {tags.length === 0 && (
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-500">No tags yet</p>
+                <button
+                  type="button"
+                  onClick={() => setShowTagModal(true)}
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  ✚ Create Tags
+                </button>
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={isSubmitting}
@@ -781,26 +1026,51 @@ export default function TodoPage() {
           </div>
         </form>
 
-        {/* Priority Filter and Statistics */}
+        {/* Priority and Tag Filters with Statistics */}
         <div className="mb-6 p-4 bg-white rounded-lg shadow-md">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700">Filter by Priority:</label>
-              <select
-                value={priorityFilter}
-                onChange={(e) => setPriorityFilter(e.target.value as Priority | 'all')}
-                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="all">All Priorities</option>
-                <option value="high">🔴 High</option>
-                <option value="medium">🟡 Medium</option>
-                <option value="low">🔵 Low</option>
-              </select>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">Filter by Priority:</label>
+                <select
+                  value={priorityFilter}
+                  onChange={(e) => setPriorityFilter(e.target.value as Priority | 'all')}
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="all">All Priorities</option>
+                  <option value="high">🔴 High</option>
+                  <option value="medium">🟡 Medium</option>
+                  <option value="low">🔵 Low</option>
+                </select>
+              </div>
+              
+              {tags.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-700">Filter by Tag:</label>
+                  <select
+                    value={tagFilter ?? ''}
+                    onChange={(e) => setTagFilter(e.target.value === '' ? null : parseInt(e.target.value))}
+                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">All Tags</option>
+                    {tags.map(tag => (
+                      <option key={tag.id} value={tag.id}>
+                        {tag.name}
+                      </option>
+                    ))}
+                  </select>
+                  {tagFilter && (
+                    <span
+                      className="inline-block w-3 h-3 rounded-full"
+                      style={{ backgroundColor: tags.find(t => t.id === tagFilter)?.color }}
+                    />
+                  )}
+                </div>
+              )}
             </div>
             
             {/* Priority Statistics */}
-            <div className="flex gap-4 text-sm">
-              <div className="flex items-center gap-1.5">
+            <div className="flex gap-4 text-sm">\n              <div className="flex items-center gap-1.5">
                 <span className="px-2 py-1 bg-red-100 text-red-800 border border-red-300 rounded-full text-xs font-semibold">
                   HIGH
                 </span>
@@ -1012,6 +1282,143 @@ export default function TodoPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+        
+        {/* Tag Management Modal */}
+        {showTagModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-bold text-gray-900">Manage Tags</h2>
+                  <button
+                    onClick={() => {
+                      setShowTagModal(false);
+                      setEditingTag(null);
+                      setEditTagName('');
+                      setEditTagColor('');
+                    }}
+                    className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {/* Create New Tag Form */}
+                <form onSubmit={handleCreateTag} className="space-y-4 pb-6 border-b border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900">Create New Tag</h3>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <input
+                      type="text"
+                      value={tagName}
+                      onChange={(e) => setTagName(e.target.value)}
+                      placeholder="Tag name..."
+                      maxLength={50}
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="color"
+                        value={tagColor}
+                        onChange={(e) => setTagColor(e.target.value)}
+                        className="w-12 h-10 rounded border border-gray-300 cursor-pointer"
+                        title="Choose tag color"
+                      />
+                      <button
+                        type="submit"
+                        className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors whitespace-nowrap"
+                      >
+                        Create Tag
+                      </button>
+                    </div>
+                  </div>
+                </form>
+
+                {/* Tag List */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Tags</h3>
+                  {tags.length === 0 ? (
+                    <p className="text-gray-500 text-center py-8">No tags yet. Create one above!</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {tags.map(tag => (
+                        <div key={tag.id} className="border border-gray-200 rounded-lg p-4">
+                          {editingTag?.id === tag.id ? (
+                            // Edit mode
+                            <form onSubmit={handleUpdateTag} className="space-y-3">
+                              <div className="flex flex-col sm:flex-row gap-3">
+                                <input
+                                  type="text"
+                                  value={editTagName}
+                                  onChange={(e) => setEditTagName(e.target.value)}
+                                  maxLength={50}
+                                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                                <input
+                                  type="color"
+                                  value={editTagColor}
+                                  onChange={(e) => setEditTagColor(e.target.value)}
+                                  className="w-12 h-10 rounded border border-gray-300 cursor-pointer"
+                                />
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  type="submit"
+                                  className="px-4 py-1.5 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors"
+                                >
+                                  Update
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingTag(null);
+                                    setEditTagName('');
+                                    setEditTagColor('');
+                                  }}
+                                  className="px-4 py-1.5 bg-gray-200 text-gray-800 text-sm font-medium rounded hover:bg-gray-300 transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </form>
+                          ) : (
+                            // Display mode
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <span
+                                  className="px-4 py-2 rounded-full text-white font-medium"
+                                  style={{ backgroundColor: tag.color }}
+                                >
+                                  {tag.name}
+                                </span>
+                                <span className="text-sm text-gray-500">{tag.color}</span>
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleEditTag(tag)}
+                                  className="px-3 py-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteTag(tag.id)}
+                                  className="px-3 py-1.5 text-sm text-red-600 hover:text-red-700 font-medium"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}

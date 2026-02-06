@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { todoDB, subtaskDB, calculateProgress } from '@/lib/db';
+import { todoDB, subtaskDB, todoTagDB, calculateProgress } from '@/lib/db';
 import { validateReminderMinutes } from '@/lib/types';
 import { getSingaporeNow } from '@/lib/timezone';
 
@@ -18,13 +18,15 @@ export async function GET(request: NextRequest) {
   try {
     const todos = todoDB.getAllByUser(session.userId);
     
-    // Fetch subtasks for each todo and calculate progress
+    // Fetch subtasks and tags for each todo and calculate progress
     const todosWithSubtasks = todos.map(todo => {
       const subtasks = subtaskDB.getByTodoId(todo.id);
+      const tags = todoTagDB.getTagsByTodo(todo.id);
       const progress = calculateProgress(subtasks);
       return {
         ...todo,
         subtasks,
+        tags,
         progress,
       };
     });
@@ -111,7 +113,18 @@ export async function POST(request: NextRequest) {
       reminder_minutes,
     });
 
-    return NextResponse.json(todo, { status: 201 });
+    // Add tags if provided
+    if (body.tag_ids && Array.isArray(body.tag_ids)) {
+      for (const tagId of body.tag_ids) {
+        if (typeof tagId === 'number') {
+          todoTagDB.add(todo.id, tagId);
+        }
+      }
+    }
+
+    // Fetch the todo with tags to return
+    const tags = todoTagDB.getTagsByTodo(todo.id);
+    return NextResponse.json({ ...todo, tags, subtasks: [], progress: { total: 0, completed: 0, percentage: 0 } }, { status: 201 });
   } catch (error) {
     console.error('Error creating todo:', error);
     return NextResponse.json(
