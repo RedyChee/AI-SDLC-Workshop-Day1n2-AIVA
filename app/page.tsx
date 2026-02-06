@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, memo } from 'react';
+import { useRouter } from 'next/navigation';
 import { Priority, Todo, UpdateTodoInput, RecurrencePattern, Subtask, SubtaskProgress, TodoWithSubtasks, Tag, TemplateWithSubtasks, SubtaskInput, SUGGESTED_CATEGORIES, DUE_OFFSET_PRESETS } from '@/lib/db-types';
 import { REMINDER_OPTIONS, ReminderMinutes, getReminderAbbreviation, calculateProgress } from '@/lib/types';
 import { 
@@ -207,6 +208,8 @@ const TodoItem = memo(({
 TodoItem.displayName = 'TodoItem';
 
 export default function TodoPage() {
+  const router = useRouter();
+  
   // State management
   const [todos, setTodos] = useState<TodoWithSubtasks[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1339,6 +1342,16 @@ export default function TodoPage() {
             >
               📋 Templates {templates.length > 0 && `(${templates.length})`}
             </button>
+            
+            {/* Calendar Button */}
+            <button
+              onClick={() => router.push('/calendar')}
+              className="px-4 py-2 bg-indigo-100 text-indigo-800 border border-indigo-300 rounded-lg font-medium hover:bg-indigo-200 transition-colors"
+            >
+              📅 Calendar
+            </button>
+            
+            {/* tton>
             
             {/* Notification Permission Button */}
             <button
