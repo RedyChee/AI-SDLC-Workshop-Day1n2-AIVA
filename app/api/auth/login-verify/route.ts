@@ -43,14 +43,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify authentication - CRITICAL: use ?? 0 for counter to handle undefined
+    // Convert stored base64url strings back to Uint8Array for verification
+    // Using type assertion due to SimpleWebAuthn v10 type definition inconsistencies
     const verification = await verifyAuthenticationResponse({
       response: credential,
       expectedChallenge: challenge,
       expectedOrigin: EXPECTED_ORIGIN,
       expectedRPID: RP_ID,
       authenticator: {
-        credentialID: isoBase64URL.toBuffer(authenticator.credential_id),
-        credentialPublicKey: isoBase64URL.toBuffer(authenticator.public_key),
+        credentialID: isoBase64URL.toBuffer(authenticator.credential_id) as any,
+        credentialPublicKey: isoBase64URL.toBuffer(authenticator.public_key) as any,
         counter: authenticator.counter ?? 0,
       },
       requireUserVerification: false,

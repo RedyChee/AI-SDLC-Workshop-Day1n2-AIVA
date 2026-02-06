@@ -54,10 +54,12 @@ export async function POST(request: NextRequest) {
     const user = userDB.create(username);
 
     // Store authenticator - CRITICAL: use ?? 0 for counter to handle undefined
+    // credentialID and credentialPublicKey might be Uint8Array or string depending on version
+    // Use type assertion to handle inconsistent type definitions
     authenticatorDB.create({
       user_id: user.id,
-      credential_id: isoBase64URL.fromBuffer(credentialID),
-      public_key: isoBase64URL.fromBuffer(credentialPublicKey),
+      credential_id: (typeof credentialID === 'string' ? credentialID : isoBase64URL.fromBuffer(credentialID)) as string,
+      public_key: (typeof credentialPublicKey === 'string' ? credentialPublicKey : isoBase64URL.fromBuffer(credentialPublicKey)) as string,
       counter: counter ?? 0,
     });
 

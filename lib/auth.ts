@@ -34,7 +34,12 @@ export async function verifySession(token: string): Promise<SessionData | null> 
   try {
     const secret = new TextEncoder().encode(JWT_SECRET);
     const { payload } = await jwtVerify(token, secret);
-    return payload as SessionData;
+    
+    // Validate payload has required fields
+    if (typeof payload.userId === 'number' && typeof payload.username === 'string') {
+      return payload as unknown as SessionData;
+    }
+    return null;
   } catch (error) {
     return null;
   }
