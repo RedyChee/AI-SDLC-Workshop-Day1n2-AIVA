@@ -31,6 +31,7 @@ export interface Authenticator {
 export interface Todo {
   id: number;
   user_id: number;
+  list_id: number | null;
   title: string;
   completed: boolean;
   due_date: string | null;
@@ -87,6 +88,16 @@ export interface Holiday {
   created_at: string;
 }
 
+export interface List {
+  id: number;
+  user_id: number;
+  name: string;
+  icon: string;
+  color: string;
+  position: number;
+  created_at: string;
+}
+
 // Initialize database schema
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -108,6 +119,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS todos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
+    list_id INTEGER,
     title TEXT NOT NULL,
     completed BOOLEAN DEFAULT 0,
     due_date TEXT,
@@ -117,7 +129,8 @@ db.exec(`
     reminder_minutes INTEGER,
     last_notification_sent TEXT,
     created_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (list_id) REFERENCES lists(id) ON DELETE SET NULL
   );
 
   CREATE TABLE IF NOT EXISTS subtasks (
@@ -170,6 +183,17 @@ db.exec(`
     name TEXT NOT NULL,
     created_at TEXT DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS lists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    icon TEXT DEFAULT '📋',
+    color TEXT DEFAULT '#3B82F6',
+    position INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
 `);
 
 // Migration: Add missing columns to templates table if they don't exist
@@ -200,14 +224,21 @@ try {
 }
 // Rename title to title_template if needed
 try {
-  const cols = db.pragma('table_info(templates)');
-  const hasTitle = cols.some((c: any) => c.name === 'title');
-  const hasTitleTemplate = cols.some((c: any) => c.name === 'title_template');
+  const cols = db.pragma('table_info(templates)') as Array<{ name: string }>;
+  const hasTitle = cols.some((c) => c.name === 'title');
+  const hasTitleTemplate = cols.some((c) => c.name === 'title_template');
   if (hasTitle && !hasTitleTemplate) {
     db.exec(`ALTER TABLE templates RENAME COLUMN title TO title_template;`);
   }
 } catch (e) {
   // Migration not needed
+}
+
+// Migration: Add list_id to todos table if it doesn't exist
+try {
+  db.exec(`ALTER TABLE todos ADD COLUMN list_id INTEGER REFERENCES lists(id) ON DELETE SET NULL;`);
+} catch (e) {
+  // Column already exists
 }
 
 // User Operations
@@ -290,12 +321,13 @@ export const todoDB = {
   create(todo: Omit<Todo, 'id' | 'created_at'>): Todo {
     const stmt = db.prepare(`
       INSERT INTO todos (
-        user_id, title, completed, due_date, priority,
+        user_id, list_id, title, completed, due_date, priority,
         is_recurring, recurrence_pattern, reminder_minutes, last_notification_sent
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const result = stmt.run(
       todo.user_id,
+      todo.list_id,
       todo.title,
       todo.completed ? 1 : 0,
       todo.due_date,
@@ -327,6 +359,10 @@ export const todoDB = {
     if (updates.priority !== undefined) {
       fields.push('priority = ?');
       values.push(updates.priority);
+    }
+    if (updates.list_id !== undefined) {
+      fields.push('list_id = ?');
+      values.push(updates.list_id);
     }
     if (updates.is_recurring !== undefined) {
       fields.push('is_recurring = ?');
@@ -574,6 +610,80 @@ export const holidayDB = {
   deleteAll(): void {
     const stmt = db.prepare('DELETE FROM holidays');
     stmt.run();
+  },
+};
+
+// List Operations
+export const listDB = {
+  getAll(userId: number): List[] {
+    const stmt = db.prepare('SELECT * FROM lists WHERE user_id = ? ORDER BY position, created_at');
+    return stmt.all(userId) as List[];
+  },
+
+  getById(id: number, userId: number): List | undefined {
+    const stmt = db.prepare('SELECT * FROM lists WHERE id = ? AND user_id = ?');
+    return stmt.get(id, userId) as List | undefined;
+  },
+
+  create(list: Omit<List, 'id' | 'created_at'>): List {
+    const stmt = db.prepare(`
+      INSERT INTO lists (user_id, name, icon, color, position)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    const result = stmt.run(
+      list.user_id,
+      list.name,
+      list.icon,
+      list.color,
+      list.position
+    );
+    return this.getById(Number(result.lastInsertRowid), list.user_id)!;
+  },
+
+  update(id: number, userId: number, updates: Partial<Omit<List, 'id' | 'user_id' | 'created_at'>>): List {
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (updates.name !== undefined) {
+      fields.push('name = ?');
+      values.push(updates.name);
+    }
+    if (updates.icon !== undefined) {
+      fields.push('icon = ?');
+      values.push(updates.icon);
+    }
+    if (updates.color !== undefined) {
+      fields.push('color = ?');
+      values.push(updates.color);
+    }
+    if (updates.position !== undefined) {
+      fields.push('position = ?');
+      values.push(updates.position);
+    }
+
+    if (fields.length === 0) {
+      return this.getById(id, userId)!;
+    }
+
+    values.push(id, userId);
+    const stmt = db.prepare(`UPDATE lists SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`);
+    stmt.run(...values);
+    return this.getById(id, userId)!;
+  },
+
+  delete(id: number, userId: number): void {
+    const stmt = db.prepare('DELETE FROM lists WHERE id = ? AND user_id = ?');
+    stmt.run(id, userId);
+  },
+
+  reorder(userId: number, listIds: number[]): void {
+    const stmt = db.prepare('UPDATE lists SET position = ? WHERE id = ? AND user_id = ?');
+    const transaction = db.transaction((ids: number[]) => {
+      ids.forEach((id, index) => {
+        stmt.run(index, id, userId);
+      });
+    });
+    transaction(listIds);
   },
 };
 

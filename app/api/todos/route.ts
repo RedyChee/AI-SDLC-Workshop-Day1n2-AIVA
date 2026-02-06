@@ -45,7 +45,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate due date (must be at least 1 minute in the future, Singapore time)
-    if (due_date) {
+    // Only validate if due_date includes a time component (has 'T' in the ISO string)
+    if (due_date && due_date.includes('T')) {
       const dueDateTime = parseToSingapore(due_date);
       const now = getSingaporeNow();
       const diff = dueDateTime.diff(now, 'minutes').minutes;
