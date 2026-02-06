@@ -2,9 +2,11 @@ import { NextResponse, NextRequest } from 'next/server'
 import { CreateTemplateSchema } from '@/lib/validation'
 import { templateDB } from '@/lib/db'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const templates = await templateDB.getAll('user-1')
+    // Get user_id from query params or use default
+    const userId = request.nextUrl.searchParams.get('user_id') || 'user-1'
+    const templates = await templateDB.getAll(userId)
 
     return NextResponse.json({
       success: true,
@@ -24,7 +26,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validated = CreateTemplateSchema.parse(body)
 
-    const template = await templateDB.create({
+    // Get user_id from request body or use default
+    const userId = body.user_id || 'user-1'
+
+    const template = await templateDB.create(userId, {
       name: validated.name,
       title: validated.title,
       description: validated.description,

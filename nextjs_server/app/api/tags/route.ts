@@ -2,9 +2,11 @@ import { NextResponse, NextRequest } from 'next/server'
 import { CreateTagSchema } from '@/lib/validation'
 import { tagDB } from '@/lib/db'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const tags = await tagDB.getAll('user-1')
+    // Get user_id from query params or use default
+    const userId = request.nextUrl.searchParams.get('user_id') || 'user-1'
+    const tags = await tagDB.getAll(userId)
 
     return NextResponse.json({
       success: true,
@@ -24,10 +26,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validated = CreateTagSchema.parse(body)
 
-    const tag = await tagDB.create({
-      name: validated.name,
-      color: validated.color,
-    })
+    // Get user_id from request body or use default
+    const userId = body.user_id || 'user-1'
+
+    const tag = await tagDB.create(userId, validated.name, validated.color)
 
     return NextResponse.json(
       {

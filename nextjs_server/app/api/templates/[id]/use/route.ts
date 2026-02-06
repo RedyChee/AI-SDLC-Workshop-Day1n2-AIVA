@@ -23,8 +23,13 @@ export async function POST(
         })()
       : undefined
 
+    // Get user_id from request body or use default
+    const body = await request.json().catch(() => ({}))
+    const userId = body.user_id || 'user-1'
+
     const subtasks = template.subtasks_json ? JSON.parse(template.subtasks_json) : []
     const created = todoDB.create({
+      user_id: userId,
       title: template.title,
       description: template.description,
       priority: template.priority,

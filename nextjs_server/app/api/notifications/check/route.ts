@@ -5,15 +5,15 @@ import { reminderDB } from '@/lib/db'
 export async function GET() {
   try {
     const now = getSingaporeNow()
-    const due = await reminderDB.getDueReminders(now)
+    const due = await reminderDB.getDueReminders(now) as any[]
 
-    const payload = due.map(({ reminder, todo }) => {
-      reminderDB.markSent(reminder.id, now.toISOString())
+    const payload = due.map((item: any) => {
+      reminderDB.markSent(item.id, now.toISOString())
       return {
-        id: reminder.id,
-        title: todo.title,
-        due_date: todo.due_date || '',
-        minutes_before: reminder.reminder_minutes,
+        id: item.id,
+        title: item.title,
+        due_date: item.due_date || '',
+        minutes_before: item.reminder_minutes,
       }
     })
 

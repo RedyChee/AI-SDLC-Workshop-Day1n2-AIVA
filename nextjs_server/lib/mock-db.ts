@@ -109,6 +109,7 @@ export async function getTodoById(id: string): Promise<TodoWithDetails | null> {
 }
 
 export async function createTodo(data: {
+  user_id?: string
   title: string
   description?: string
   priority?: 'high' | 'medium' | 'low'

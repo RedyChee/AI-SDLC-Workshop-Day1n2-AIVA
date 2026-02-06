@@ -6,6 +6,12 @@ services:
       context: ./nextjs_server
     ports:
       - "3000:3000"
+    volumes:
+      - todo-db:/data
     environment:
       NODE_ENV: production
       TZ: Asia/Singapore
+      DATABASE_PATH: /data/todos.db
+
+volumes:
+  todo-db:

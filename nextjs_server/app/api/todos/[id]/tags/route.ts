@@ -24,7 +24,7 @@ export async function POST(
       return NextResponse.json({ error: 'Tag not found' }, { status: 404 })
     }
 
-    const nextTags = todo.tags.some(t => t.id === tagId)
+    const nextTags = todo.tags.some((t: any) => t.id === tagId)
       ? todo.tags
       : [...todo.tags, tag]
 
@@ -55,7 +55,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Todo not found' }, { status: 404 })
     }
 
-    const nextTags = todo.tags.filter(tag => tag.id !== tagId)
+    const nextTags = todo.tags.filter((tag: any) => tag.id !== tagId)
     const updated = await todoDB.update(id, { tags: nextTags } as any)
 
     return NextResponse.json({ success: true, data: updated })

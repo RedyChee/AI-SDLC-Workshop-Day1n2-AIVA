@@ -1,7 +1,20 @@
-// Using mock-db for development and testing
-// For production with native SQLite, replace this with better-sqlite3 based implementation
+// SQLite database implementation using better-sqlite3
+// Uses SQLite in production (Docker/Railway) and mock-db in development
 
-import * as mockDB from './mock-db'
+let dbImpl: any
+
+// In production (Docker), use SQLite; in development, use mock-db
+if (process.env.NODE_ENV === 'production' || process.env.DATABASE_PATH) {
+  try {
+    dbImpl = require('./sqlite-db')
+  } catch (err) {
+    console.warn('Could not load SQLite, falling back to mock-db')
+    dbImpl = require('./mock-db')
+  }
+} else {
+  // Development: use mock-db (In-memory, no native compilation needed)
+  dbImpl = require('./mock-db')
+}
 
 // Type definitions for export
 export type Priority = 'high' | 'medium' | 'low'
@@ -76,44 +89,44 @@ export interface ExportPayload {
 }
 
 // Re-export database functions
-export const getTodos = mockDB.getTodos
-export const getTodoById = mockDB.getTodoById
-export const createTodo = mockDB.createTodo
-export const updateTodo = mockDB.updateTodo
-export const deleteTodo = mockDB.deleteTodo
-export const addSubtask = mockDB.addSubtask
-export const getTags = mockDB.getTags
-export const getTagById = mockDB.getTagById
-export const createTag = mockDB.createTag
-export const updateTag = mockDB.updateTag
-export const deleteTag = mockDB.deleteTag
-export const getTemplates = mockDB.getTemplates
-export const getTemplateById = mockDB.getTemplateById
-export const createTemplate = mockDB.createTemplate
-export const updateTemplate = mockDB.updateTemplate
-export const deleteTemplate = mockDB.deleteTemplate
-export const updateSubtask = mockDB.updateSubtask
-export const deleteSubtask = mockDB.deleteSubtask
-export const generateId = mockDB.generateId
-export const initializeData = mockDB.initializeData
-export const resetMockDB = mockDB.resetMockDB
-export const setReminderForTodo = mockDB.setReminderForTodo
-export const getDueReminders = mockDB.getDueReminders
-export const markReminderSent = mockDB.markReminderSent
-export const importAll = mockDB.importAll
+export const getTodos = dbImpl.getTodos
+export const getTodoById = dbImpl.getTodoById
+export const createTodo = dbImpl.createTodo
+export const updateTodo = dbImpl.updateTodo
+export const deleteTodo = dbImpl.deleteTodo
+export const addSubtask = dbImpl.addSubtask
+export const getTags = dbImpl.getTags
+export const getTagById = dbImpl.getTagById
+export const createTag = dbImpl.createTag
+export const updateTag = dbImpl.updateTag
+export const deleteTag = dbImpl.deleteTag
+export const getTemplates = dbImpl.getTemplates
+export const getTemplateById = dbImpl.getTemplateById
+export const createTemplate = dbImpl.createTemplate
+export const updateTemplate = dbImpl.updateTemplate
+export const deleteTemplate = dbImpl.deleteTemplate
+export const updateSubtask = dbImpl.updateSubtask
+export const deleteSubtask = dbImpl.deleteSubtask
+export const generateId = dbImpl.generateId
+export const initializeData = dbImpl.initializeData
+export const resetMockDB = dbImpl.resetMockDB
+export const setReminderForTodo = dbImpl.setReminderForTodo
+export const getDueReminders = dbImpl.getDueReminders
+export const markReminderSent = dbImpl.markReminderSent
+export const importAll = dbImpl.importAll
 
 // Export database objects for backward compatibility
 export const todoDB = {
-  getAll: async (userId?: string) => mockDB.getTodos(),
-  getById: mockDB.getTodoById,
-  create: mockDB.createTodo,
-  update: mockDB.updateTodo,
-  delete: mockDB.deleteTodo,
-  addSubtask: mockDB.addSubtask,
-  updateSubtask: mockDB.updateSubtask,
-  deleteSubtask: mockDB.deleteSubtask,
+  getAll: async (userId?: string) => dbImpl.getTodos(userId),
+  getById: dbImpl.getTodoById,
+  create: dbImpl.createTodo,
+  update: dbImpl.updateTodo,
+  delete: dbImpl.deleteTodo,
+  addSubtask: dbImpl.addSubtask,
+  updateSubtask: dbImpl.updateSubtask,
+  deleteSubtask: dbImpl.deleteSubtask,
   createNextRecurring: async (todo: any) => {
-    // Mock implementation - in production, calculate next occurrence
+    // Calculate next recurring instance
     if (!todo.is_recurring || !todo.recurrence_pattern) return null
     
     const days: Record<string, number> = {
@@ -131,7 +144,8 @@ export const todoDB = {
       return null
     }
     
-    return await mockDB.createTodo({
+    return dbImpl.createTodo({
+      user_id: todo.user_id,
       title: todo.title,
       description: todo.description,
       priority: todo.priority,
@@ -139,7 +153,7 @@ export const todoDB = {
       is_recurring: true,
       recurrence_pattern: todo.recurrence_pattern,
       recurrence_end_date: todo.recurrence_end_date,
-      reminder_minutes: todo.reminders?.[0]?.minutes_before ?? null,
+      reminder_minutes: todo.reminders?.[0]?.reminder_minutes ?? null,
       subtasks: todo.subtasks?.map((s: any) => s.title) || [],
       tag_ids: todo.tags?.map((t: any) => t.id) || [],
     })
@@ -147,57 +161,66 @@ export const todoDB = {
 }
 
 export const tagDB = {
-  getAll: async (userId?: string) => mockDB.getTags(),
-  getById: mockDB.getTagById,
-  create: mockDB.createTag,
-  update: mockDB.updateTag,
-  delete: mockDB.deleteTag,
+  getAll: async (userId?: string) => dbImpl.getTags(userId),
+  getById: dbImpl.getTagById,
+  create: dbImpl.createTag,
+  update: dbImpl.updateTag,
+  delete: dbImpl.deleteTag,
 }
 
 export const templateDB = {
-  getAll: async (userId?: string) => mockDB.getTemplates(),
-  getById: mockDB.getTemplateById,
-  create: mockDB.createTemplate,
-  update: mockDB.updateTemplate,
-  delete: mockDB.deleteTemplate,
+  getAll: async (userId?: string) => dbImpl.getTemplates(userId),
+  getById: dbImpl.getTemplateById,
+  create: dbImpl.createTemplate,
+  update: dbImpl.updateTemplate,
+  delete: dbImpl.deleteTemplate,
 }
 
 // Mock implementations for features not yet in mock-db
 export const reminderDB = {
   getDueReminders: async (now: Date) => {
-    return await mockDB.getDueReminders(now)
+    return dbImpl.getDueReminders(now)
   },
   markSent: async (id: string, nowIso: string) => {
-    await mockDB.markReminderSent(id, nowIso)
+    dbImpl.markReminderSent(id, nowIso)
   },
 }
 
 export const holidayDB = {
   getAll: async () => {
-    return [
-      { date: '2026-01-01', name: 'New Year Day', country: 'SG' },
-      { date: '2026-02-09', name: 'Chinese New Year', country: 'SG' },
-      { date: '2026-02-10', name: 'Chinese New Year Holiday', country: 'SG' },
-      { date: '2026-04-10', name: 'Good Friday', country: 'SG' },
-      { date: '2026-05-01', name: 'Labour Day', country: 'SG' },
-      { date: '2026-05-24', name: 'Vesak Day', country: 'SG' },
-      { date: '2026-08-09', name: 'National Day', country: 'SG' },
-      { date: '2026-10-24', name: 'Deepavali', country: 'SG' },
-      { date: '2026-12-25', name: 'Christmas Day', country: 'SG' },
-    ]
+    // Try to get from database, otherwise return defaults
+    try {
+      return dbImpl.getHolidays ? dbImpl.getHolidays() : getDefaultHolidays()
+    } catch {
+      return getDefaultHolidays()
+    }
   },
 }
 
 export const exportDB = {
   exportAll: async (userId?: string) => {
-    const todos = await mockDB.getTodos()
-    const tags = await mockDB.getTags()
-    const templates = await mockDB.getTemplates()
+    const todos = dbImpl.getTodos(userId)
+    const tags = dbImpl.getTags(userId)
+    const templates = dbImpl.getTemplates(userId)
     return { todos, tags, templates }
   },
   importAll: async (payload: any) => {
-    return await mockDB.importAll(payload)
+    return dbImpl.importAll(payload)
   },
+}
+
+function getDefaultHolidays() {
+  return [
+    { date: '2026-01-01', name: 'New Year Day', country: 'SG' },
+    { date: '2026-02-09', name: 'Chinese New Year', country: 'SG' },
+    { date: '2026-02-10', name: 'Chinese New Year Holiday', country: 'SG' },
+    { date: '2026-04-10', name: 'Good Friday', country: 'SG' },
+    { date: '2026-05-01', name: 'Labour Day', country: 'SG' },
+    { date: '2026-05-24', name: 'Vesak Day', country: 'SG' },
+    { date: '2026-08-09', name: 'National Day', country: 'SG' },
+    { date: '2026-10-24', name: 'Deepavali', country: 'SG' },
+    { date: '2026-12-25', name: 'Christmas Day', country: 'SG' },
+  ]
 }
 
 

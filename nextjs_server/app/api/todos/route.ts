@@ -3,9 +3,11 @@ import { CreateTodoSchema } from '@/lib/validation'
 import { todoDB } from '@/lib/db'
 import { formatSingaporeDate, getSingaporeNow } from '@/lib/timezone'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const todos = await todoDB.getAll('user-1')
+    // Get user_id from query params or use default
+    const userId = request.nextUrl.searchParams.get('user_id') || 'user-1'
+    const todos = await todoDB.getAll(userId)
     return NextResponse.json({
       success: true,
       data: todos,
@@ -39,7 +41,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Reminders require a due date' }, { status: 400 })
     }
 
+    // Use user_id from request body or default to 'user-1'
+    const userId = body.user_id || 'user-1'
+
     const todo = await todoDB.create({
+      user_id: userId,
       title: validated.title,
       description: validated.description,
       priority: validated.priority,
