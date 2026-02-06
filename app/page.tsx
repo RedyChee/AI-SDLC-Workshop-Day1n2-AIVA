@@ -284,6 +284,9 @@ export default function TodoPage() {
   const [showSavePresetModal, setShowSavePresetModal] = useState(false);
   const [presetName, setPresetName] = useState('');
   
+  // Import ref
+  const importFileInputRef = useState<HTMLInputElement | null>(null)[0];
+  
   // Load filter presets from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem('filterPresets');
@@ -680,6 +683,102 @@ export default function TodoPage() {
     } catch (error) {
       console.error('Failed to delete template:', error);
       alert('Failed to delete template');
+    }
+  };
+
+  // Export/Import handlers
+  const handleExportJSON = async () => {
+    try {
+      const response = await fetch('/api/todos/export?format=json');
+      if (!response.ok) {
+        throw new Error('Failed to export todos');
+      }
+
+      const data = await response.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `todos-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export todos');
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleExportCSV = async () => {
+    try {
+      const response = await fetch('/api/todos/export?format=csv');
+      if (!response.ok) {
+        throw new Error('Failed to export todos');
+      }
+
+      const csvContent = await response.text();
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `todos-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export todos');
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Reset the input so the same file can be selected again
+    event.target.value = '';
+
+    if (!confirm('This will create new todos from the import file. Importing the same file multiple times will create duplicates. Continue?')) {
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+
+      const response = await fetch('/api/todos/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to import todos');
+      }
+
+      setError(null);
+      // Show success message temporarily
+      const successMsg = result.message || 'Successfully imported todos';
+      setError(successMsg);
+      setTimeout(() => setError(null), 5000);
+      
+      // Refresh todos list
+      fetchTodos();
+    } catch (err) {
+      if (err instanceof SyntaxError) {
+        setError('Invalid JSON format');
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to import todos');
+      }
+      setTimeout(() => setError(null), 5000);
     }
   };
 
@@ -1205,7 +1304,34 @@ export default function TodoPage() {
             <p className="text-gray-600 mt-1">Manage your tasks efficiently</p>
           </div>
           
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap">
+            {/* Export JSON Button */}
+            <button
+              onClick={handleExportJSON}
+              className="px-4 py-2 bg-green-100 text-green-800 border border-green-300 rounded-lg font-medium hover:bg-green-200 transition-colors"
+            >
+              📥 Export JSON
+            </button>
+            
+            {/* Export CSV Button */}
+            <button
+              onClick={handleExportCSV}
+              className="px-4 py-2 bg-green-700 text-white border border-green-800 rounded-lg font-medium hover:bg-green-800 transition-colors"
+            >
+              📊 Export CSV
+            </button>
+            
+            {/* Import Button */}
+            <label className="px-4 py-2 bg-blue-100 text-blue-800 border border-blue-300 rounded-lg font-medium hover:bg-blue-200 transition-colors cursor-pointer">
+              📤 Import
+              <input
+                type="file"
+                accept=".json"
+                onChange={handleImport}
+                className="hidden"
+              />
+            </label>
+            
             {/* Templates Button */}
             <button
               onClick={() => setShowTemplateManager(true)}
