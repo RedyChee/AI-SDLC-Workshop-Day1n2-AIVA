@@ -200,9 +200,9 @@ try {
 }
 // Rename title to title_template if needed
 try {
-  const cols = db.pragma('table_info(templates)');
-  const hasTitle = cols.some((c: any) => c.name === 'title');
-  const hasTitleTemplate = cols.some((c: any) => c.name === 'title_template');
+  const cols = db.pragma('table_info(templates)') as Array<{ name: string }>;
+  const hasTitle = cols.some((c) => c.name === 'title');
+  const hasTitleTemplate = cols.some((c) => c.name === 'title_template');
   if (hasTitle && !hasTitleTemplate) {
     db.exec(`ALTER TABLE templates RENAME COLUMN title TO title_template;`);
   }
