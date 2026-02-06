@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
-import jwt from 'jsonwebtoken';
+import { SignJWT, jwtVerify } from 'jose';
+import { userDB } from './db';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const SESSION_COOKIE_NAME = 'session';
@@ -12,25 +13,28 @@ export interface SessionData {
 
 /**
  * Create a session token for a user
+ * Uses jose library for Edge Runtime compatibility
  */
-export function createSession(userId: number, username: string): string {
-  const payload: SessionData = {
-    userId,
-    username,
-  };
+export async function createSession(userId: number, username: string): Promise<string> {
+  const secret = new TextEncoder().encode(JWT_SECRET);
+  
+  const token = await new SignJWT({ userId, username })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setExpirationTime(`${SESSION_EXPIRY_DAYS}d`)
+    .sign(secret);
 
-  return jwt.sign(payload, JWT_SECRET, {
-    expiresIn: `${SESSION_EXPIRY_DAYS}d`,
-  });
+  return token;
 }
 
 /**
  * Verify and decode a session token
+ * Uses jose library for Edge Runtime compatibility
  */
-export function verifySession(token: string): SessionData | null {
+export async function verifySession(token: string): Promise<SessionData | null> {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as SessionData;
-    return decoded;
+    const secret = new TextEncoder().encode(JWT_SECRET);
+    const { payload } = await jwtVerify(token, secret);
+    return payload as SessionData;
   } catch (error) {
     return null;
   }
@@ -60,6 +64,7 @@ export async function clearSessionCookie(): Promise<void> {
 
 /**
  * Get current session from cookies
+ * Also validates that the user still exists in the database
  */
 export async function getSession(): Promise<SessionData | null> {
   const cookieStore = await cookies();
@@ -69,7 +74,18 @@ export async function getSession(): Promise<SessionData | null> {
     return null;
   }
 
-  return verifySession(sessionCookie.value);
+  const session = await verifySession(sessionCookie.value);
+  if (!session) {
+    return null;
+  }
+
+  // Verify user still exists in database
+  const user = userDB.getById(session.userId);
+  if (!user) {
+    return null;
+  }
+
+  return session;
 }
 
 /**
