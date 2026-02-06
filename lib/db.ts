@@ -68,10 +68,15 @@ export interface Template {
   id: number;
   user_id: number;
   name: string;
-  title: string;
+  description: string | null;
+  category: string | null;
+  title_template: string;
   priority: Priority;
-  due_date_offset_days: number;
-  subtasks_json: string;
+  is_recurring: boolean;
+  recurrence_pattern: RecurrencePattern | null;
+  reminder_minutes: number | null;
+  subtasks_json: string | null;
+  due_date_offset_days: number | null;
   created_at: string;
 }
 
@@ -146,10 +151,15 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     name TEXT NOT NULL,
-    title TEXT NOT NULL,
+    description TEXT,
+    category TEXT,
+    title_template TEXT NOT NULL,
     priority TEXT DEFAULT 'medium',
-    due_date_offset_days INTEGER DEFAULT 0,
+    is_recurring BOOLEAN DEFAULT 0,
+    recurrence_pattern TEXT,
+    reminder_minutes INTEGER,
     subtasks_json TEXT,
+    due_date_offset_days INTEGER,
     created_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
@@ -161,6 +171,44 @@ db.exec(`
     created_at TEXT DEFAULT (datetime('now'))
   );
 `);
+
+// Migration: Add missing columns to templates table if they don't exist
+try {
+  db.exec(`ALTER TABLE templates ADD COLUMN description TEXT;`);
+} catch (e) {
+  // Column already exists
+}
+try {
+  db.exec(`ALTER TABLE templates ADD COLUMN category TEXT;`);
+} catch (e) {
+  // Column already exists
+}
+try {
+  db.exec(`ALTER TABLE templates ADD COLUMN is_recurring BOOLEAN DEFAULT 0;`);
+} catch (e) {
+  // Column already exists
+}
+try {
+  db.exec(`ALTER TABLE templates ADD COLUMN recurrence_pattern TEXT;`);
+} catch (e) {
+  // Column already exists
+}
+try {
+  db.exec(`ALTER TABLE templates ADD COLUMN reminder_minutes INTEGER;`);
+} catch (e) {
+  // Column already exists
+}
+// Rename title to title_template if needed
+try {
+  const cols = db.pragma('table_info(templates)');
+  const hasTitle = cols.some((c: any) => c.name === 'title');
+  const hasTitleTemplate = cols.some((c: any) => c.name === 'title_template');
+  if (hasTitle && !hasTitleTemplate) {
+    db.exec(`ALTER TABLE templates RENAME COLUMN title TO title_template;`);
+  }
+} catch (e) {
+  // Migration not needed
+}
 
 // User Operations
 export const userDB = {
@@ -228,6 +276,15 @@ export const todoDB = {
   getById(id: number, userId: number): Todo | undefined {
     const stmt = db.prepare('SELECT * FROM todos WHERE id = ? AND user_id = ?');
     return stmt.get(id, userId) as Todo | undefined;
+  },
+
+  getByMonth(userId: number, month: string): Todo[] {
+    const stmt = db.prepare(`
+      SELECT * FROM todos 
+      WHERE user_id = ? AND due_date LIKE ? 
+      ORDER BY due_date
+    `);
+    return stmt.all(userId, `${month}%`) as Todo[];
   },
 
   create(todo: Omit<Todo, 'id' | 'created_at'>): Todo {
@@ -448,6 +505,7 @@ export const todoTagDB = {
 };
 
 // Template Operations
+// Template Operations
 export const templateDB = {
   getAll(userId: number): Template[] {
     const stmt = db.prepare('SELECT * FROM templates WHERE user_id = ? ORDER BY name');
@@ -461,16 +519,25 @@ export const templateDB = {
 
   create(template: Omit<Template, 'id' | 'created_at'>): Template {
     const stmt = db.prepare(`
-      INSERT INTO templates (user_id, name, title, priority, due_date_offset_days, subtasks_json)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO templates (
+        user_id, name, description, category, title_template, priority,
+        is_recurring, recurrence_pattern, reminder_minutes,
+        subtasks_json, due_date_offset_days
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const result = stmt.run(
       template.user_id,
       template.name,
-      template.title,
+      template.description,
+      template.category,
+      template.title_template,
       template.priority,
-      template.due_date_offset_days,
-      template.subtasks_json
+      template.is_recurring ? 1 : 0,
+      template.recurrence_pattern,
+      template.reminder_minutes,
+      template.subtasks_json,
+      template.due_date_offset_days
     );
     return this.getById(Number(result.lastInsertRowid), template.user_id)!;
   },
@@ -486,6 +553,11 @@ export const holidayDB = {
   getAll(): Holiday[] {
     const stmt = db.prepare('SELECT * FROM holidays ORDER BY date');
     return stmt.all() as Holiday[];
+  },
+
+  getByMonth(month: string): Holiday[] {
+    const stmt = db.prepare('SELECT * FROM holidays WHERE date LIKE ? ORDER BY date');
+    return stmt.all(`${month}%`) as Holiday[];
   },
 
   getByDate(date: string): Holiday | undefined {

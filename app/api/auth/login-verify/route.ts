@@ -8,7 +8,6 @@ import { userDB, authenticatorDB } from '@/lib/db';
 import { createSession, setSessionCookie } from '@/lib/auth';
 
 const RP_ID = process.env.RP_ID || 'localhost';
-const ORIGIN = process.env.ORIGIN || 'http://localhost:3000';
 
 /**
  * POST /api/auth/login-verify
@@ -36,11 +35,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Authenticator not found' }, { status: 404 });
     }
 
+    // Get origin from request to support dynamic ports
+    const origin = request.headers.get('origin') || process.env.ORIGIN || 'http://localhost:3000';
+
     // Verify the credential
     const opts: VerifyAuthenticationResponseOpts = {
       response: credential,
       expectedChallenge: challenge,
-      expectedOrigin: ORIGIN,
+      expectedOrigin: origin,
       expectedRPID: RP_ID,
       credential: {
         id: authenticator.credential_id,
