@@ -28,7 +28,7 @@ export function getReminderAbbreviation(minutes: ReminderMinutes): string | null
 }
 
 // Validate reminder_minutes value
-export function validateReminderMinutes(minutes: any): ReminderMinutes {
+export function validateReminderMinutes(minutes: unknown): ReminderMinutes {
   if (minutes === null || minutes === undefined) return null;
   const numMinutes = parseInt(String(minutes), 10);
   if ([15, 30, 60, 120, 1440, 2880, 10080].includes(numMinutes)) {
@@ -47,7 +47,7 @@ export function calculateProgress(subtasks: Subtask[]): SubtaskProgress {
 }
 
 // Validate subtask title
-export function validateSubtaskTitle(title: any): string | null {
+export function validateSubtaskTitle(title: unknown): string | null {
   if (typeof title !== 'string') return null;
   const trimmed = title.trim();
   if (trimmed.length === 0) return null;

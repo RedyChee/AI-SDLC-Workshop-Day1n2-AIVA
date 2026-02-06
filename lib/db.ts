@@ -266,33 +266,34 @@ db.exec(`
 // These migrations run at module load time to update existing databases
 try {
   db.exec(`ALTER TABLE templates ADD COLUMN description TEXT DEFAULT NULL CHECK(description IS NULL OR length(description) <= 500)`);
-} catch (e: any) {
+} catch {
   // Column already exists or other error - ignore
 }
 try {
   db.exec(`ALTER TABLE templates ADD COLUMN category TEXT DEFAULT NULL CHECK(category IS NULL OR length(category) <= 50)`);
-} catch (e: any) {
+} catch {
   // Column already exists or other error - ignore
 }
 try {
   db.exec(`ALTER TABLE templates ADD COLUMN title_template TEXT NOT NULL DEFAULT ''`);
-} catch (e: any) {
+} catch {
   // Column already exists or other error - ignore
 }
 try {
   db.exec(`ALTER TABLE templates ADD COLUMN recurrence_enabled INTEGER NOT NULL DEFAULT 0 CHECK(recurrence_enabled IN (0, 1))`);
-} catch (e: any) {
+} catch {
   // Column already exists or other error - ignore
 }
 try {
   db.exec(`ALTER TABLE templates ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'))`);
-} catch (e: any) {
+} catch {
   // Column already exists or other error - ignore
 }
 try {
   // Check if migration from old schema to new schema is needed
-  const columns = db.prepare("PRAGMA table_info(templates)").all() as any[];
-  const columnNames = columns.map((col: any) => col.name);
+  interface ColumnInfo { name: string; type: string; notnull: number; dflt_value: string | null; pk: number; }
+  const columns = db.prepare("PRAGMA table_info(templates)").all() as ColumnInfo[];
+  const columnNames = columns.map((col) => col.name);
   
   // If old column name exists, need to migrate
   const hasOldColumn = columnNames.includes('due_date_offset_days');
@@ -342,9 +343,10 @@ try {
       CREATE INDEX IF NOT EXISTS idx_templates_category ON templates(user_id, category);
     `);
   }
-} catch (e: any) {
+} catch (error) {
   // Migration failed or not needed - ignore
-  console.error('Template migration error (non-fatal):', e.message);
+  const message = error instanceof Error ? error.message : 'Unknown error';
+  console.error('Template migration error (non-fatal):', message);
 }
 
 // Create template indexes (safe to run even if they exist)
@@ -354,13 +356,14 @@ try {
     CREATE INDEX IF NOT EXISTS idx_templates_user_id ON templates(user_id);
     CREATE INDEX IF NOT EXISTS idx_templates_category ON templates(user_id, category);
   `);
-} catch (e: any) {
+} catch (error) {
   // Index creation failed - ignore (columns might not exist yet)
-  console.error('Template index creation error (non-fatal):', e.message);
+  const message = error instanceof Error ? error.message : 'Unknown error';
+  console.error('Template index creation error (non-fatal):', message);
 }
 
 // Template validation and helper functions
-export function validateTemplateName(name: any): string | null {
+export function validateTemplateName(name: unknown): string | null {
   if (typeof name !== 'string') return null;
   const trimmed = name.trim();
   if (trimmed.length === 0) return null;
@@ -368,7 +371,7 @@ export function validateTemplateName(name: any): string | null {
   return trimmed;
 }
 
-export function validateTemplateDescription(description: any): string | null {
+export function validateTemplateDescription(description: unknown): string | null {
   if (description === null || description === undefined) return null;
   if (typeof description !== 'string') return null;
   const trimmed = description.trim();
@@ -377,7 +380,7 @@ export function validateTemplateDescription(description: any): string | null {
   return trimmed;
 }
 
-export function validateCategory(category: any): string | null {
+export function validateCategory(category: unknown): string | null {
   if (category === null || category === undefined) return null;
   if (typeof category !== 'string') return null;
   const trimmed = category.trim();
@@ -386,7 +389,7 @@ export function validateCategory(category: any): string | null {
   return trimmed;
 }
 
-export function validateDueOffsetDays(days: any): number | null {
+export function validateDueOffsetDays(days: unknown): number | null {
   if (days === null || days === undefined) return null;
   const num = typeof days === 'string' ? parseInt(days, 10) : days;
   if (isNaN(num)) return null;
@@ -559,7 +562,7 @@ export const todoDB = {
 
   update: (id: number, data: UpdateTodoInput): Todo => {
     const fields: string[] = [];
-    const values: any[] = [];
+    const values: (string | number | boolean | null)[] = [];
 
     if (data.title !== undefined) {
       fields.push('title = ?');
@@ -709,7 +712,7 @@ export const subtaskDB = {
     position?: number;
   }): Subtask => {
     const fields: string[] = [];
-    const values: any[] = [];
+    const values: (string | number)[] = [];
 
     if (data.title !== undefined) {
       fields.push('title = ?');
@@ -775,7 +778,7 @@ export const tagDB = {
 
   update: (id: number, data: { name?: string; color?: string }): Tag => {
     const fields: string[] = [];
-    const values: any[] = [];
+    const values: (string | number)[] = [];
 
     if (data.name !== undefined) {
       fields.push('name = ?');
